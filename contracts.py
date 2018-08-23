@@ -128,7 +128,8 @@ def analyze_contracts():
 	number_of_contracts = len(all_contracts)
 	index = 1
 	for contract in all_contracts:
-		print('impoting ', index, '/', number_of_contracts)
+		#print('\rimportin page: '+str(page)+'/'+str(total_pages), end="")
+		print('\rimpoting ', index, '/', number_of_contracts, end="")
 		index = index + 1
 		
 		profit = evaluate_contract( contract)
