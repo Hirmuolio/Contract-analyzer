@@ -114,6 +114,7 @@ def evaluate_contract(contract):
 
 def import_prices():
 	#Import Jita prices and save
+	print('Importing market prices')
 	orders = import_orders(10000002)
 	item_prices = get_item_prices(orders)
 	with open('item_prices.json', 'w') as outfile:
@@ -163,9 +164,10 @@ def import_regions():
 		
 	with open('regions.json', 'w') as outfile:
 		json.dump(regions, outfile, indent=4)
+	return regions
 	
 def region_selection():
-	print('Regions: ', regions.keys() )
+	print('Valid regions: ', list(regions) )
 	user_input = input("Type in the region to import ")
 	
 	if user_input in regions:
@@ -178,7 +180,7 @@ def region_selection():
 
 				
 def main_menu():
-	print('[R] Region to import (currently: ', config['region'], ')\n[M] Market data reimport\n[S] Start contract analysis')
+	print('[R] Region to import contracts from (currently: ', config['region'], ')\n[M] Market data reimport\n[S] Start contract analysis')
 	user_input = input("[R/M/S] ")
 	if user_input in ['R', 'r']:
 		region_selection()
@@ -193,22 +195,24 @@ def main_menu():
 #--------------------------
 #Start the thing
 #--------------------------
-print('starting')
 
 try:
 	item_prices = json.load(open('item_prices.json'))
 except:
+	print('No market prices found')
 	import_prices()
 
 try:
 	regions = json.load(open('regions.json'))
 except:
-	import_regions()
-
+	print('No regions found')
+	regions = import_regions()
+	
+	
 try:
 	config = json.load(open('config.json'))
 except:
-	config = {'region':'Jita'}
+	config = {'region':'The Forge'}
 	with open('config.json', 'w') as outfile:
 		json.dump(config, outfile, indent=4)
 	
