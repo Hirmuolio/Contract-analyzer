@@ -195,7 +195,8 @@ def analyze_contracts():
 	all_contracts = fetch_contracts(region_id)
 		
 	contract_values = {}
-	profitables = ''
+	profitable_buy = ''
+	profitable_sell = ''
 	number_of_contracts = len(all_contracts)
 	index = 1
 	for contract in all_contracts:
@@ -221,7 +222,7 @@ def analyze_contracts():
 				profit = str( round( profit) ) + ' isk'
 			
 			string = '<url=contract:30003576//' + str(contract['contract_id']) + '> ' + profit
-			profitables = profitables + '\n' + string
+			profitable_buy = profitable_buy + '\n' + string
 				
 		elif profit['profit_sell'] > 0:
 			profit = profit['profit_buy']
@@ -235,10 +236,12 @@ def analyze_contracts():
 				profit = str( round( profit) ) + ' isk'
 			
 			string = '<url=contract:30003576//' + str(contract['contract_id']) + '> ' + profit
-			profitables = profitables + '\n' + string
+			profitable_sell = profitable_sell + '\n' + string
 			
-	with open('profit.txt', 'w') as outfile:
-		outfile.write(profitables)
+	with open('profitable_buy.txt', 'w') as outfile:
+		profitable_buy.write(profitables)
+	with open('profitable_sell.txt', 'w') as outfile:
+		outfile.write(profitable_sell)
 	print('Analysis completed')
 
 def import_regions():
