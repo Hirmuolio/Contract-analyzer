@@ -87,7 +87,7 @@ def evaluate_contract(contract):
 
 	contract_id = contract['contract_id']
 	cost = contract['price'] - contract['reward']
-	
+	all_items = []
 	#items 
 	# /v1/contracts/public/items/{par}/
 	response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get region contract items', user_agent = script_user_agent)
@@ -95,13 +95,23 @@ def evaluate_contract(contract):
 	if response.status_code == 204:
 		#Expired recently
 		return {'profit_sell': 0, 'profit_buy':0}
+	
+	all_items.extend(response.json())
+	
+	#Multipage contracts for very big contracts.
+	total_pages = int(response.headers['X-Pages'])
+	for page in range(2, total_pages + 1):
+		print('\rpage: '+str(page)+'/'+str(total_pages), end="")
 		
-	raw_items = response.json()
+		response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, parameters = {'page': page}, job = 'get contract items for many pages', user_agent = script_user_agent)
+		
+		all_items.extend(response.json())
+		
 	
 	value_sell = 0
 	value_buy = 0
 	
-	for item_dict in raw_items:
+	for item_dict in all_items:
 		if 'is_blueprint_copy' in item_dict:
 			continue
 		quantity = item_dict['quantity']
@@ -120,7 +130,57 @@ def evaluate_contract(contract):
 	profit = {'profit_sell': value_sell - cost, 'profit_buy':value_buy - cost}
 	return profit
 
+def evaluate_contract_id(contract_id):
+	
 
+	#if contract["type"] != 'item_exchange':
+	#	return {'profit_sell': 0, 'profit_buy':0}
+
+	#contract_id = contract['contract_id']
+	#cost = contract['price'] - contract['reward']
+	cost = 0
+	all_items = []
+	#items 
+	# /v1/contracts/public/items/{par}/
+	response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get contract items', user_agent = script_user_agent)
+	
+	if response.status_code == 204:
+		#Expired recently
+		return {'profit_sell': 0, 'profit_buy':0}
+	
+	all_items.extend(response.json())
+	
+	#Multipage contracts for very big contracts. Untested.
+	total_pages = int(response.headers['X-Pages'])
+	for page in range(2, total_pages + 1):
+		print('\rpage: '+str(page)+'/'+str(total_pages), end="")
+		
+		response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, parameters = {'page': page}, job = 'get contract items for many pages', user_agent = script_user_agent)
+		
+		all_items.extend(response.json())
+		
+	
+	value_sell = 0
+	value_buy = 0
+	
+	for item_dict in all_items:
+		if 'is_blueprint_copy' in item_dict:
+			continue
+		quantity = item_dict['quantity']
+		type_id = item_dict['type_id']
+		
+		if item_dict["is_included"] == False:
+			quantity = -quantity
+		
+		if str(type_id) in item_prices:
+			if 'sell_price' in item_prices[str(type_id)]:
+				value_sell = value_sell + quantity * item_prices[str(type_id)]['sell_price']
+			if 'buy_price' in item_prices[str(type_id)]:
+				value_buy = value_buy + quantity * item_prices[str(type_id)]['buy_price']
+	
+	
+	profit = {'profit_sell': value_sell - cost, 'profit_buy':value_buy - cost}
+	return profit
 
 def import_prices():
 	#Import Jita prices and save
@@ -136,8 +196,6 @@ def analyze_contracts():
 		
 	contract_values = {}
 	profitables = ''
-	with open('profit.txt', 'w') as outfile:
-		json.dump(profitables, outfile, indent=4)
 	number_of_contracts = len(all_contracts)
 	index = 1
 	for contract in all_contracts:
@@ -164,8 +222,6 @@ def analyze_contracts():
 			
 			string = '<url=contract:30003576//' + str(contract['contract_id']) + '> ' + profit
 			profitables = profitables + '\n' + string
-			with open('profit.txt', 'w') as outfile:
-				outfile.write(profitables)
 				
 		elif profit['profit_sell'] > 0:
 			profit = profit['profit_buy']
@@ -181,8 +237,8 @@ def analyze_contracts():
 			string = '<url=contract:30003576//' + str(contract['contract_id']) + '> ' + profit
 			profitables = profitables + '\n' + string
 			
-			with open('profit.txt', 'w') as outfile:
-				outfile.write(profitables)
+	with open('profit.txt', 'w') as outfile:
+		outfile.write(profitables)
 	print('Analysis completed')
 
 def import_regions():
@@ -250,7 +306,7 @@ except:
 	config = {'region':'The Forge'}
 	with open('config.json', 'w') as outfile:
 		json.dump(config, outfile, indent=4)
-	
+
 main_menu()
 
 
