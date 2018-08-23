@@ -239,7 +239,7 @@ def analyze_contracts():
 			profitable_sell = profitable_sell + '\n' + string
 			
 	with open('profitable_buy.txt', 'w') as outfile:
-		profitable_buy.write(profitables)
+		outfile.write(profitable_buy)
 	with open('profitable_sell.txt', 'w') as outfile:
 		outfile.write(profitable_sell)
 	print('Analysis completed')
