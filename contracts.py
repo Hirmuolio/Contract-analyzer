@@ -135,7 +135,7 @@ def analyze_contracts():
 	all_contracts = fetch_contracts(region_id)
 		
 	contract_values = {}
-	profitables = {'profit_sell':{}, 'profit_buy':{}}
+	profitables = ''
 	with open('profit.txt', 'w') as outfile:
 		json.dump(profitables, outfile, indent=4)
 	number_of_contracts = len(all_contracts)
@@ -151,19 +151,38 @@ def analyze_contracts():
 		with open('contract_values.json', 'w') as outfile:
 				json.dump(contract_values, outfile, indent=4)
 		
-		if profit['profit_buy'] > 0:
-			#profitable contract
-			clickable = "<url=contract:30003576//" + str(contract['contract_id']) + ">Profit sell</url>" + str(round(profit['profit_buy']) )
-			profitables['profit_buy'][contract['contract_id']] = clickable
+		if profit['profit_buy'] > 0:		
+			profit = profit['profit_buy']
+			if profit > 1000000000: #1b
+				profit = str( round(profit / 1000000000)) + ' billion isk'
+			elif profit > 1000000: #1m
+				profit = str( round(profit / 1000000)) + ' million isk'
+			elif profit > 1000: #1k
+				profit = str( round(profit / 1000)) + ' thousand isk'
+			else:
+				profit = str( round( profit) ) + ' isk'
+			
+			string = '<url=contract:30003576//' + str(contract['contract_id']) + '> ' + profit
+			profitables = profitables + '\n' + string
 			with open('profit.txt', 'w') as outfile:
-				json.dump(profitables, outfile, indent=4)
+				outfile.write(profitables)
 				
 		elif profit['profit_sell'] > 0:
-			#profitable contract
-			clickable = "<url=contract:30003576//" + str(contract['contract_id']) + ">Profit sell</url>" + str(round(profit['profit_sell']) )
-			profitables['profit_sell'][contract['contract_id']] = clickable
+			profit = profit['profit_buy']
+			if profit > 1000000000: #1b
+				profit = str( round(profit / 1000000000)) + 'billion isk'
+			elif profit > 1000000: #1m
+				profit = str( round(profit / 1000000)) + 'million isk'
+			elif profit > 1000: #1k
+				profit = str( round(profit / 1000)) + 'thousand isk'
+			else:
+				profit = str( round( profit) ) + ' isk'
+			
+			string = '<url=contract:30003576//' + str(contract['contract_id']) + '> ' + profit
+			profitables = profitables + '\n' + string
+			
 			with open('profit.txt', 'w') as outfile:
-				json.dump(profitables, outfile, indent=4)
+				outfile.write(profitables)
 	print('Analysis completed')
 
 def import_regions():
