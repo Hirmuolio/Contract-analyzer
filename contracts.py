@@ -91,6 +91,11 @@ def evaluate_contract(contract):
 	#items 
 	# /v1/contracts/public/items/{par}/
 	response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get region contract items', user_agent = script_user_agent)
+	
+	if response.status_code == 204:
+		#Expired recently
+		return {'profit_sell': 0, 'profit_buy':0}
+		
 	raw_items = response.json()
 	
 	value_sell = 0
@@ -126,10 +131,13 @@ def import_prices():
 		json.dump(item_prices, outfile, indent=4)
 
 def analyze_contracts():
-	all_contracts = fetch_contracts(10000002)
+	region_id = regions[config['region']]
+	all_contracts = fetch_contracts(region_id)
 		
 	contract_values = {}
 	profitables = {'profit_sell':{}, 'profit_buy':{}}
+	with open('profit.txt', 'w') as outfile:
+		json.dump(profitables, outfile, indent=4)
 	number_of_contracts = len(all_contracts)
 	index = 1
 	for contract in all_contracts:
@@ -178,6 +186,8 @@ def region_selection():
 	
 	if user_input in regions:
 		config['region'] = user_input
+		with open('config.json', 'w') as outfile:
+			json.dump(config, outfile, indent=4)
 		main_menu()
 	else:
 		print('Invalid region. Try again')
