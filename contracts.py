@@ -5,7 +5,7 @@ import esi_calling
 import requests
 import datetime
 
-script_user_agent = 'Contract analyzer by Hirmuolio'
+esi_calling.set_user_agent('Hirmuolio/Contract-analyzer')
 
 def fetch_contracts(region_id):
 	#10000044 = Solitude
@@ -24,7 +24,7 @@ def fetch_contracts(region_id):
 	responses = []
 	for page in range(2, total_pages + 1):
 		print('\rimportin page: '+str(page)+'/'+str(total_pages), end="")
-		response = esi_calling.call_esi(scope = '/v1/contracts/public/{par}/', url_parameter=region_id, parameters = {'page': page}, job = 'get region contracts', user_agent = script_user_agent)
+		response = esi_calling.call_esi(scope = '/v1/contracts/public/{par}/', url_parameter=region_id, parameters = {'page': page}, job = 'get region contracts')
 		responses.append(response)
 	for response in responses:
 		data = response.json()
@@ -39,7 +39,7 @@ def import_orders(region_id):
 	print('importin page 1')
 	all_orders = []
 	
-	response = esi_calling.call_esi(scope = '/v1/markets/{par}/orders/', url_parameter=region_id, job = 'get market orders', user_agent = script_user_agent)
+	response = esi_calling.call_esi(scope = '/v1/markets/{par}/orders/', url_parameter=region_id, job = 'get market orders')
 	
 	all_orders.extend(response.json())
 	total_pages = int(response.headers['X-Pages'])
@@ -49,7 +49,7 @@ def import_orders(region_id):
 	for page in range(2, total_pages + 1):
 		print('\rimportin page: '+str(page)+'/'+str(total_pages), end="")
 		
-		response = esi_calling.call_esi(scope = '/v1/markets/{par}/orders/', url_parameter=region_id, parameters = {'page': page}, job = 'get market orders', user_agent = script_user_agent)
+		response = esi_calling.call_esi(scope = '/v1/markets/{par}/orders/', url_parameter=region_id, parameters = {'page': page}, job = 'get market orders')
 		
 		responses.append(response)
 	for response in responses:
@@ -90,7 +90,7 @@ def evaluate_contract(contract):
 	all_items = []
 	#items 
 	# /v1/contracts/public/items/{par}/
-	response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get region contract items', user_agent = script_user_agent)
+	response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get region contract items')
 	
 	if response.status_code == 204:
 		#Expired recently
@@ -103,7 +103,7 @@ def evaluate_contract(contract):
 	for page in range(2, total_pages + 1):
 		print('\rpage: '+str(page)+'/'+str(total_pages), end="")
 		
-		response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, parameters = {'page': page}, job = 'get contract items for many pages', user_agent = script_user_agent)
+		response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, parameters = {'page': page}, job = 'get contract items for many pages')
 		
 		all_items.extend(response.json())
 		
@@ -193,12 +193,12 @@ def analyze_contracts():
 	print('\nAnalysis completed')
 
 def import_regions():
-	response = esi_calling.call_esi(scope = '/v1/universe/regions/', job = 'get regions', user_agent = script_user_agent)
+	response = esi_calling.call_esi(scope = '/v1/universe/regions/', job = 'get regions')
 	
 	regions = {}
 	for region_id in response.json():
 		print('importing a region name...')
-		response = esi_calling.call_esi(scope = '/v1/universe/regions/{par}/', url_parameter=region_id, job = 'get region name', user_agent = script_user_agent)
+		response = esi_calling.call_esi(scope = '/v1/universe/regions/{par}/', url_parameter=region_id, job = 'get region name')
 		region_name = response.json()["name"]
 		regions[region_name] = region_id
 		
