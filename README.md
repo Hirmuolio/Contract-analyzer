@@ -1,6 +1,6 @@
 # Contract-analyzer
 
-This python script will import all contracts of a single region and compare them to Jita prices of items. It will then give the user all the contracts that are cheaper than their contents.
+This python script will import all contracts of a single region and compare them to Forge (Jita is in there) prices of items. It will then give the user all the contracts that are cheaper than their contents.
 
 ## How to use
 Simply run the contracts.py. 
@@ -20,6 +20,7 @@ The script has few cases where it will give incorrect results.
 * All blueprint copies, abyssal modules and other items that are not available on Jita market are valued as worthless. If a contract wants to pay for a bluoeprint the script will think the payment is pure profit as you are giving worthless item in return.
 * Only item exchange contracts are looked at. Auction and hauling contracts are ignored.
 * The value estimations are based on the current highest buy order and current lowest sell order in Jita. The real value may be difrerent (beware the contract scam).
+* The Forge region includes areas other than Jita.
 
 ## Requirements:
 * Python 3
