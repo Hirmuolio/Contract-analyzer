@@ -29,7 +29,7 @@ def fetch_contracts(region_id):
 	for response in responses:
 		data = response.json()
 		all_contracts.extend(data)
-	print('. Got {:,d} contracts.'.format(len(all_contracts)))
+	print('Got {:,d} contracts.'.format(len(all_contracts)))
 	return all_contracts
 
 
@@ -221,28 +221,28 @@ def analyze_contracts():
 			else:
 				profit = str( round( profit) ) + ' isk'
 			
-			string = '<url=contract:30003576//' + str(contract['contract_id']) + '> ' + profit
+			string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit + '</url> '
 			profitable_buy = profitable_buy + '\n' + string
 				
 		elif profit['profit_sell'] > 0:
-			profit = profit['profit_buy']
+			profit = profit['profit_sell']
 			if profit > 1000000000: #1b
-				profit = str( round(profit / 1000000000)) + 'billion isk'
+				profit = str( round(profit / 1000000000)) + ' billion isk'
 			elif profit > 1000000: #1m
-				profit = str( round(profit / 1000000)) + 'million isk'
+				profit = str( round(profit / 1000000)) + ' million isk'
 			elif profit > 1000: #1k
-				profit = str( round(profit / 1000)) + 'thousand isk'
+				profit = str( round(profit / 1000)) + ' thousand isk'
 			else:
 				profit = str( round( profit) ) + ' isk'
 			
-			string = '<url=contract:30003576//' + str(contract['contract_id']) + '> ' + profit
+			string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit + '</url> '
 			profitable_sell = profitable_sell + '\n' + string
-			
-	with open('profitable_buy.txt', 'w') as outfile:
-		outfile.write(profitable_buy)
-	with open('profitable_sell.txt', 'w') as outfile:
-		outfile.write(profitable_sell)
-	print('Analysis completed')
+	
+	full_string = 'Profitable to sell to Jita buy orders:' + profitable_buy + '\n\nProfitable sell as Jita sell order' + profitable_sell
+	with open('profitable.txt', 'w') as outfile:
+		outfile.write(full_string)
+
+	print('\nAnalysis completed')
 
 def import_regions():
 	response = esi_calling.call_esi(scope = '/v1/universe/regions/', job = 'get regions', user_agent = script_user_agent)
