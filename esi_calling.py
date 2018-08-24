@@ -1,3 +1,5 @@
+#Esi calling 1.2
+
 import requests
 import json
 import time
@@ -8,6 +10,13 @@ import webbrowser
 
 from datetime import datetime
 from datetime import timedelta
+
+user_agent = 'something from Hirmuolio'
+
+def set_user_agent(new_user_agent):
+	global user_agent
+	user_agent = new_user_agent
+	
 
 def error_handling(esi_response, number_of_attempts, tokens = None, scope = None, job = None):
 	#Call this function to decide what to do on error
@@ -62,7 +71,7 @@ def logging_in(scopes, client_id, client_secret):
 	combo = base64.b64encode(bytes( client_id+':'+client_secret, 'utf-8')).decode("utf-8")
 	authentication_url = "https://login.eveonline.com/oauth/token"
 	
-	esi_response = requests.post(authentication_url, headers =  {"Authorization":"Basic "+combo}, data = {"grant_type": "authorization_code", "code": authentication_code} )
+	esi_response = requests.post(authentication_url, headers =  {"Authorization":"Basic "+combo, "User-Agent":user_agent}, data = {"grant_type": "authorization_code", "code": authentication_code} )
 	
 	if esi_response.status_code != 200:
 		error_handling(esi_response, number_of_attempts, job = 'log in')
@@ -107,7 +116,7 @@ def check_tokens(tokens, client_secret, client_id):
 		
 		trying = True
 		while trying == True:
-			esi_response = requests.post(refresh_url, headers =  {"Authorization":"Basic "+combo}, data = {"grant_type": "refresh_token", "refresh_token": tokens['refresh_token']} )
+			esi_response = requests.post(refresh_url, headers =  {"Authorization":"Basic "+combo, "User-Agent":user_agent}, data = {"grant_type": "refresh_token", "refresh_token": tokens['refresh_token']} )
 			
 			if esi_response.status_code != 200:
 				error_handling(esi_response, number_of_attempts, tokens, scope = None, job = 'refresh tokens')
@@ -135,7 +144,7 @@ def get_token_info(tokens):
 	
 	trying = True
 	while trying == True:
-		esi_response = requests.get(url, headers =  {"Authorization":"Bearer "+tokens['access_token']})
+		esi_response = requests.get(url, headers =  {"Authorization":"Bearer "+tokens['access_token'], "User-Agent":user_agent})
 		
 		if esi_response.status_code != 200:
 			error_handling(esi_response, number_of_attempts, tokens, scope = None, job = 'get token info')
@@ -178,9 +187,9 @@ def call_esi(scope, url_parameter = '', parameters={}, etag = None, tokens = Non
 	
 	#un-authorized / authorized
 	if tokens == None:
-		headers = {}
+		headers = {"User-Agent":user_agent}
 	else:
-		headers =  {"Authorization":"Bearer "+tokens['access_token']}
+		headers =  {"Authorization":"Bearer "+tokens['access_token'], "User-Agent":user_agent}
 	
 	trying = True
 	while trying == True:
