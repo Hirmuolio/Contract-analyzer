@@ -159,8 +159,6 @@ def analyze_contracts():
 		profit = evaluate_contract( contract)
 		
 		contract_values[contract['contract_id']] = {'profit_sell':profit['profit_sell'], 'profit_buy':profit['profit_buy']}
-		with open('contract_values.json', 'w') as outfile:
-				json.dump(contract_values, outfile, indent=4)
 		
 		if profit['profit_buy'] > 0:		
 			profit = profit['profit_buy']
