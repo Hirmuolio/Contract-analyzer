@@ -89,8 +89,10 @@ def evaluate_contract(contract):
 	cost = contract['price'] - contract['reward']
 	
 	if contract_id in contract_cache:
-		all_items = contract_cache[contract_id]
+		all_items = contract_cache[contract_id]['items']
 	else:
+		contract_cache[contract_id] = {}
+		contract_cache[contract_id]['expiry'] = contract['date_expired']
 		all_items = []
 		response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get region contract items')
 		
@@ -109,7 +111,7 @@ def evaluate_contract(contract):
 			
 			all_items.extend(response.json())
 
-		contract_cache[contract_id] = all_items
+		contract_cache[contract_id]['items'] = all_items
 		with open('contract_cache.json', 'w') as outfile:
 			json.dump(contract_cache, outfile, indent=4)
 	value_sell = 0
