@@ -87,30 +87,33 @@ def evaluate_contract(contract):
 
 	contract_id = contract['contract_id']
 	cost = contract['price'] - contract['reward']
-	all_items = []
-	#items 
-	# /v1/contracts/public/items/{par}/
-	response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get region contract items')
 	
-	if response.status_code == 204:
-		#Expired recently
-		return {'profit_sell': 0, 'profit_buy':0}
-	
-	all_items.extend(response.json())
-	
-	#Multipage contracts for very big contracts.
-	total_pages = int(response.headers['X-Pages'])
-	for page in range(2, total_pages + 1):
-		print('\rpage: '+str(page)+'/'+str(total_pages), end="")
+	if contract_id in contract_cache:
+		all_items = contract_cache[contract_id]
+	else:
+		all_items = []
+		response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get region contract items')
 		
-		response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, parameters = {'page': page}, job = 'get contract items for many pages')
+		if response.status_code == 204:
+			#Expired recently
+			return {'profit_sell': 0, 'profit_buy':0}
 		
 		all_items.extend(response.json())
 		
-	
+		#Multipage contracts for very big contracts.
+		total_pages = int(response.headers['X-Pages'])
+		for page in range(2, total_pages + 1):
+			print('\rpage: '+str(page)+'/'+str(total_pages), end="")
+			
+			response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, parameters = {'page': page}, job = 'get contract items for many pages')
+			
+			all_items.extend(response.json())
+
+		contract_cache[contract_id] = all_items
+		with open('contract_cache.json', 'w') as outfile:
+			json.dump(contract_cache, outfile, indent=4)
 	value_sell = 0
 	value_buy = 0
-	
 	for item_dict in all_items:
 		if 'is_blueprint_copy' in item_dict:
 			continue
@@ -245,11 +248,15 @@ except:
 	import_prices()
 
 try:
+	contract_cache = json.load(open('contract_cache.json'))
+except:
+	contract_cache = {}
+
+try:
 	regions = json.load(open('regions.json'))
 except:
 	print('No regions found')
 	regions = import_regions()
-	
 	
 try:
 	config = json.load(open('config.json'))
