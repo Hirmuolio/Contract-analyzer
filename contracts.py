@@ -95,11 +95,13 @@ def evaluate_contract(contract):
 		contract_cache[contract_id] = {}
 		contract_cache[contract_id]['expiry'] = contract['date_expired']
 		all_items = []
-		response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get region contract items')
+		response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get contract items')
 		
 		if response.status_code == 204:
-			#Expired recently
+			#Expired recently or empty
+			contract_cache[contract_id]['items'] = []
 			return {'profit_sell': 0, 'profit_buy':0}
+			
 		
 		all_items.extend(response.json())
 		
