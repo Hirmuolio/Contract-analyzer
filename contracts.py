@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 import json
-import esi_calling
+from datetime import datetime
 import requests
-import datetime
+
+import esi_calling
 
 esi_calling.set_user_agent('Hirmuolio/Contract-analyzer')
 
@@ -112,8 +113,6 @@ def evaluate_contract(contract):
 			all_items.extend(response.json())
 
 		contract_cache[contract_id]['items'] = all_items
-		with open('contract_cache.json', 'w') as outfile:
-			json.dump(contract_cache, outfile, indent=4)
 	value_sell = 0
 	value_buy = 0
 	for item_dict in all_items:
@@ -194,7 +193,8 @@ def analyze_contracts():
 	full_string = 'Profitable to sell to Jita buy orders:' + profitable_buy + '\n\nProfitable sell as Jita sell order' + profitable_sell
 	with open('profitable.txt', 'w') as outfile:
 		outfile.write(full_string)
-
+	with open('contract_cache.json', 'w') as outfile:
+			json.dump(contract_cache, outfile, indent=4)
 	print('\nAnalysis completed')
 
 def import_regions():
@@ -224,7 +224,18 @@ def region_selection():
 		print('Invalid region. Try again')
 		region_selection()
 	
-
+def clean_cache():
+	#deletes old entries from the contract cache
+	time_now = datetime.utcnow()
+	deletable_contracts = []
+	for contract_id in contract_cache:
+		contract_expiry = datetime.strptime(contract_cache[contract_id]['expiry'], '%Y-%m-%dT%H:%M:%SZ') 
+		if time_now > contract_expiry:
+			deletable_contracts.append(contract_id)
+	for contract_id in deletable_contracts:
+		contract_cache.pop(contract_id, None)
+	with open('contract_cache.json', 'w') as outfile:
+		json.dump(contract_cache, outfile, indent=4)
 				
 def main_menu():
 	print('[R] Region to import contracts from (currently: ', config['region'], ')\n[M] Market data reimport\n[S] Start contract analysis')
@@ -266,6 +277,8 @@ except:
 	config = {'region':'The Forge'}
 	with open('config.json', 'w') as outfile:
 		json.dump(config, outfile, indent=4)
+
+clean_cache()
 
 main_menu()
 
