@@ -5,7 +5,7 @@ This python script will import all contracts of a single region and compare them
 ## How to use
 Simply run the contracts.py. 
 
-The download will include market data but it will be outdated. In  the main menu choose `[M] Market data import` to import fresh market data of Jita. You should reimport the market data every now and then to keep it up to date.
+On first run the script will start by importing the Forge (Jita) market data. The market data will be cached locally so it doesn't need to be rimported every time. When you want to get more recent market data choose `[M] Market data import` in main menu. You should reimport the market data every now and then to keep it up to date.
 
 Select the region of which you want to import contracts of. You will need to write the name of the region exactly right.
 
