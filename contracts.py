@@ -314,6 +314,7 @@ try:
 		item_prices = json.loads(fin.read().decode('utf-8'))
 except:
 	print('No market prices found')
+	item_prices = {}
 	import_prices()
 
 try:
