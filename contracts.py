@@ -137,7 +137,7 @@ def import_prices():
 	# 10000044 = Solitude
 	# 10000002 = Forge (Jita)
 	print('Importing market prices')
-	orders = import_orders(10000044)
+	orders = import_orders(10000002)
 	item_prices = get_item_prices(orders)
 	#with open('item_prices.json', 'w') as outfile:
 	#	json.dump(item_prices, outfile, indent=4)
