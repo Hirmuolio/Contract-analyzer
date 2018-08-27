@@ -129,7 +129,7 @@ def evaluate_contract(contract):
 				value_buy = value_buy + quantity * item_prices[str(type_id)]['buy_price']
 	
 	
-	profit = {'profit_sell': [value_sell - cost, (value_sell - cost)/cost] , 'profit_buy':[value_buy - cost, (value_buy - cost)/cost]}
+	profit = {'profit_sell': [value_sell - cost, 100*(value_sell - cost)/cost] , 'profit_buy':[value_buy - cost, 100*(value_buy - cost)/cost]}
 	return profit
 
 def import_prices():
