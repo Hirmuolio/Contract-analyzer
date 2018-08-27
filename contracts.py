@@ -282,7 +282,7 @@ try:
 except:
 	print('No market prices found')
 	item_prices = {}
-	import_prices()
+	item_prices = import_prices()
 
 try:
 	#contract_cache = json.load(open('contract_cache.json'))
