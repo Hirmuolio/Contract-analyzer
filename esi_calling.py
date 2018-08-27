@@ -13,6 +13,8 @@ from datetime import timedelta
 
 user_agent = 'something from Hirmuolio'
 
+session = requests.Session()
+
 def set_user_agent(new_user_agent):
 	global user_agent
 	user_agent = new_user_agent
@@ -161,10 +163,10 @@ def get_token_info(tokens):
 	
 	return token_info
 		
-def call_esi(scope, url_parameter = '', parameters={}, etag = None, tokens = None, datasource = 'tranquility', calltype='get', job = ''):
+def call_esi(scope, url_parameter = '', etag = None, tokens = None, datasource = 'tranquility', calltype='get', job = ''):
 	#scope = url part. Mark the spot of parameter with {par}
 	#url_parameter = parameter that goes into the url
-	#parameters = json parameters to include (pages mostly)
+	#parameters = json parameters to include (pages mostly) - NOT USED ANYMORE
 	#etag = TODO
 	#tokens = json that contains refresh token. Optinally also access token and its expiration time if they already exist.
 	#refresh_token = tokens['refresh_token']
@@ -176,7 +178,6 @@ def call_esi(scope, url_parameter = '', parameters={}, etag = None, tokens = Non
 	#job = string telling what is being done. Is displayed on error message.
 	
 	number_of_attempts = 0
-		
 	
 	#Build the url to call to
 	#Also replace // with / to make things easier
@@ -195,27 +196,59 @@ def call_esi(scope, url_parameter = '', parameters={}, etag = None, tokens = Non
 	while trying == True:
 		#Make the call based on calltype
 		if calltype == 'get':
-			esi_response = requests.get(url, headers = headers, params = parameters)
+			esi_response = session.get(url, headers = headers)
 		elif calltype == 'post':
-			esi_response = requests.post(url, headers = headers, params = parameters)
+			esi_response = session.post(url, headers = headers)
 		elif calltype == 'delete':
-			esi_response = requests.post(url, headers = headers, params = parameters)
+			esi_response = session.delete(url, headers = headers)
 		
 		#200 = ok
 		#204 = ok
 		#304 = no change
 		#404 = not found
 		#400 = bad request. User is stupid
-		if esi_response.status_code in [200, 204, 304]:
-			#All OK
-			trying = False
-		elif esi_response.status_code in [404,  400]:
-			#print('404 not found')
+		if esi_response.status_code in [200, 204, 304, 404,  400]:
+			#[200, 204, 304] = All OK
+			#[404,  400] = not found or user error. Still OK
 			trying = False
 		else:
 			error_handling(esi_response, number_of_attempts, tokens, scope, job)
-
 		number_of_attempts = number_of_attempts + 1
+	
+	#Multipaged  calls
+	#Returns array of all the r esponses
+	if 'X-Pages' in esi_response.headers:
+		number_of_attempts = 0
+		all_responses = []
+		all_responses.append(esi_response)
+		
+		total_pages = int(esi_response.headers['X-Pages'])
+		expires = esi_response.headers['expires']
+		if total_pages > 1:
+			print('multipage response. Fetching ', total_pages, 'pages.')
+		
+		for page in range(2, total_pages + 1):
+			trying = True
+			while trying == True:
+				print('\rimporting page ', page, '/', total_pages, end='')
+				parameters = {'page': page}
+				esi_response_page = session.get(url, headers = headers, params = parameters)
+				
+				if esi_response_page.json() == []:
+					print('Seems like ESI updated during importing. Results may be wrong.')
+				
+				all_responses.append(esi_response_page)
+				
+				if esi_response_page.status_code in [200, 204, 304, 404, 400]:
+					trying = False
+				else:
+					error_handling(esi_response_page, number_of_attempts, tokens, scope, job)
+				number_of_attempts = number_of_attempts + 1
+		if total_pages > 1:	
+			print(' - DONE')
+		return all_responses
+
+		
 		
 	return esi_response
 	

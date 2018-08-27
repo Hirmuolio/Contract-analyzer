@@ -15,7 +15,6 @@ def fetch_contracts(region_id):
 	
 	all_contracts = []
 	
-	
 	if str(region_id) in region_cache:
 		#Region already cached. Check if has expired
 		time_now = datetime.utcnow()
@@ -32,25 +31,14 @@ def fetch_contracts(region_id):
 	else:
 		print('Importing region from ESI.')
 	
-	#/v1/contracts/public/{par}/
-	response = esi_calling.call_esi(scope = '/v1/contracts/public/{par}/', url_parameter=region_id, job = 'get region contracts')
+	response_array = esi_calling.call_esi(scope = '/v1/contracts/public/{par}/', url_parameter=region_id, job = 'get region contracts')
+	expires = response_array[0].headers['expires']
 	
-	all_contracts.extend(response.json())
-	total_pages = int(response.headers['X-Pages'])
-	print('total number of pages:'+str(total_pages))
-	
-	#Import rest of the pages
-	responses = []
-	for page in range(2, total_pages + 1):
-		print('\rimportin page: '+str(page)+'/'+str(total_pages), end="")
-		response = esi_calling.call_esi(scope = '/v1/contracts/public/{par}/', url_parameter=region_id, parameters = {'page': page}, job = 'get region contracts')
-		responses.append(response)
-	for response in responses:
-		data = response.json()
-		all_contracts.extend(data)
+	for response in response_array:
+		all_contracts.extend(response.json())
 	print('Got {:,d} contracts.'.format(len(all_contracts)))
 	
-	expires = response.headers['expires']
+	
 	
 	region_cache[str(region_id)] = {}
 	region_cache[str(region_id)]['expires'] = expires
@@ -67,26 +55,13 @@ def fetch_contracts(region_id):
 def import_orders(region_id):
 	#'10000044' Solitude
 	#10000002 = Jita
-	print('importin page 1')
 	all_orders = []
 	
-	response = esi_calling.call_esi(scope = '/v1/markets/{par}/orders/', url_parameter=region_id, job = 'get market orders')
+	response_array = esi_calling.call_esi(scope = '/v1/markets/{par}/orders/', url_parameter=region_id, job = 'get market orders')
 	
-	all_orders.extend(response.json())
-	total_pages = int(response.headers['X-Pages'])
-	print('total number of pages:'+str(total_pages))
-	
-	responses = []
-	for page in range(2, total_pages + 1):
-		print('\rimportin page: '+str(page)+'/'+str(total_pages), end="")
-		
-		response = esi_calling.call_esi(scope = '/v1/markets/{par}/orders/', url_parameter=region_id, parameters = {'page': page}, job = 'get market orders')
-		
-		responses.append(response)
-	for response in responses:
-		data = response.json()
-		all_orders.extend(data)
-	print('. Got {:,d} orders.'.format(len(all_orders)))
+	for response in response_array:
+		all_orders.extend(response.json())
+	print('Got {:,d} orders.'.format(len(all_orders)))
 	return all_orders
 
 def get_item_prices(response):
@@ -114,7 +89,7 @@ def evaluate_contract(contract):
 	
 
 	if contract["type"] != 'item_exchange':
-		return {'profit_sell': 0, 'profit_buy':0}
+		return {'profit_sell': [0, 0], 'profit_buy': [0, 0]}
 
 	contract_id = str(contract['contract_id'])
 	cost = contract['price'] - contract['reward']
@@ -125,23 +100,14 @@ def evaluate_contract(contract):
 		contract_cache[contract_id] = {}
 		contract_cache[contract_id]['expires'] = contract['date_expired']
 		all_items = []
-		response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get contract items')
+		response_array = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get contract items')
 		
-		if response.status_code == 204:
+		if response_array[0].status_code == 204:
 			#Expired recently or empty
 			contract_cache[contract_id]['items'] = []
-			return {'profit_sell': 0, 'profit_buy':0}
+			return {'profit_sell': [0, 0], 'profit_buy': [0, 0]}
 			
-		
-		all_items.extend(response.json())
-		
-		#Multipage contracts for very big contracts.
-		total_pages = int(response.headers['X-Pages'])
-		for page in range(2, total_pages + 1):
-			print('\rpage: '+str(page)+'/'+str(total_pages), end="")
-			
-			response = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, parameters = {'page': page}, job = 'get contract items for many pages')
-			
+		for response in response_array:
 			all_items.extend(response.json())
 
 		contract_cache[contract_id]['items'] = all_items
@@ -163,13 +129,15 @@ def evaluate_contract(contract):
 				value_buy = value_buy + quantity * item_prices[str(type_id)]['buy_price']
 	
 	
-	profit = {'profit_sell': value_sell - cost, 'profit_buy':value_buy - cost}
+	profit = {'profit_sell': [value_sell - cost, (value_sell - cost)/cost] , 'profit_buy':[value_buy - cost, (value_buy - cost)/cost]}
 	return profit
 
 def import_prices():
 	#Import Jita prices and save
+	# 10000044 = Solitude
+	# 10000002 = Forge (Jita)
 	print('Importing market prices')
-	orders = import_orders(10000002)
+	orders = import_orders(10000044)
 	item_prices = get_item_prices(orders)
 	#with open('item_prices.json', 'w') as outfile:
 	#	json.dump(item_prices, outfile, indent=4)
@@ -194,32 +162,31 @@ def analyze_contracts():
 		
 		contract_values[contract['contract_id']] = {'profit_sell':profit['profit_sell'], 'profit_buy':profit['profit_buy']}
 		
-		if profit['profit_buy'] > 0:		
-			profit = profit['profit_buy']
-			if profit > 1000000000: #1b
-				profit = str( round(profit / 1000000000)) + ' billion isk'
-			elif profit > 1000000: #1m
-				profit = str( round(profit / 1000000)) + ' million isk'
-			elif profit > 1000: #1k
-				profit = str( round(profit / 1000)) + ' thousand isk'
+		if profit['profit_buy'][0] > 0:		
+			profit_isk = profit['profit_buy'][0]
+			if profit_isk > 1000000000: #1b
+				profit_isk = str( round(profit_isk / 1000000000)) + ' billion isk'
+			elif profit_isk > 1000000: #1m
+				profit_isk = str( round(profit_isk / 1000000)) + ' million isk'
+			elif profit_isk > 1000: #1k
+				profit_isk = str( round(profit_isk / 1000)) + ' thousand isk'
 			else:
-				profit = str( round( profit) ) + ' isk'
+				profit_isk = str( round( profit_isk) ) + ' isk'
 			
-			string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit + '</url> '
+			string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit_isk + '</url> ' + str( round(profit['profit_buy'][1]) ) + '%'
 			profitable_buy = profitable_buy + '\n' + string
 				
-		elif profit['profit_sell'] > 0:
-			profit = profit['profit_sell']
-			if profit > 1000000000: #1b
-				profit = str( round(profit / 1000000000)) + ' billion isk'
-			elif profit > 1000000: #1m
-				profit = str( round(profit / 1000000)) + ' million isk'
-			elif profit > 1000: #1k
-				profit = str( round(profit / 1000)) + ' thousand isk'
+		elif profit['profit_sell'][0] > 0:
+			profit_isk = profit['profit_sell'][0]
+			if profit_isk > 1000000000: #1b
+				profit_isk = str( round(profit_isk / 1000000000)) + ' billion isk'
+			elif profit_isk > 1000000: #1m
+				profit_isk = str( round(profit_isk / 1000000)) + ' million isk'
+			elif profit_isk > 1000: #1k
+				profit_isk = str( round(profit_isk / 1000)) + ' thousand isk'
 			else:
-				profit = str( round( profit) ) + ' isk'
-			
-			string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit + '</url> '
+				profit_isk = str( round( profit_isk) ) + ' isk'
+			string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit_isk + '</url> ' + str( round( profit['profit_sell'][1] ) ) + '%'
 			profitable_sell = profitable_sell + '\n' + string
 	
 	full_string = 'Profitable to sell to Jita buy orders:' + profitable_buy + '\n\nProfitable sell as Jita sell order' + profitable_sell
