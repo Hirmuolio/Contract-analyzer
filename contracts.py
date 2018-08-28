@@ -87,10 +87,8 @@ def get_item_prices(response):
 
 def evaluate_contract(contract):
 	
-
 	if contract["type"] != 'item_exchange':
 		return {'profit_sell': [0, 0], 'profit_buy': [0, 0]}
-
 	contract_id = str(contract['contract_id'])
 	cost = contract['price'] - contract['reward']
 	
@@ -102,15 +100,21 @@ def evaluate_contract(contract):
 		all_items = []
 		response_array = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get contract items')
 		
-		if response_array[0].status_code == 204:
+		try:
+			response_code = response_array[0].status_code
+		except:
+			#For some reason some things are not as multipage response so no array is returned.
+			response_code = response_array.status_code
+			#print(response_code)
+		
+		if response_code in [204, 400, 403, 404,]:
 			#Expired recently or empty
 			contract_cache[contract_id]['items'] = []
 			return {'profit_sell': [0, 0], 'profit_buy': [0, 0]}
 			
 		for response in response_array:
 			all_items.extend(response.json())
-
-		contract_cache[contract_id]['items'] = all_items
+			contract_cache[contract_id]['items'] = all_items
 	value_sell = 0
 	value_buy = 0
 	for item_dict in all_items:
@@ -129,7 +133,8 @@ def evaluate_contract(contract):
 				value_buy = value_buy + quantity * item_prices[str(type_id)]['buy_price']
 	
 	
-	profit = {'profit_sell': [value_sell - cost, 100*(value_sell - cost)/cost] , 'profit_buy':[value_buy - cost, 100*(value_buy - cost)/cost]}
+	profit = {'profit_sell': [value_sell - cost, 100*(value_sell - cost)/(cost+0.01)] , 'profit_buy':[value_buy - cost, 100*(value_buy - cost)/(cost+0.01)]}
+
 	return profit
 
 def import_prices():
@@ -188,7 +193,12 @@ def analyze_contracts():
 				profit_isk = str( round( profit_isk) ) + ' isk'
 			string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit_isk + '</url> ' + str( round( profit['profit_sell'][1] ) ) + '%'
 			profitable_sell = profitable_sell + '\n' + string
-	
+		
+		if index%100 == 0:
+			#Save the cache every 100th contract. Just in case.
+			with gzip.GzipFile('contract_cache.gz', 'w') as outfile:
+				outfile.write(json.dumps(contract_cache).encode('utf-8')) 
+		
 	full_string = 'Profitable to sell to Jita buy orders:' + profitable_buy + '\n\nProfitable sell as Jita sell order' + profitable_sell
 	with open('profitable.txt', 'w') as outfile:
 		outfile.write(full_string)
@@ -282,7 +292,7 @@ try:
 except:
 	print('No market prices found')
 	item_prices = {}
-	item_prices = import_prices()
+	import_prices()
 
 try:
 	#contract_cache = json.load(open('contract_cache.json'))
