@@ -114,7 +114,7 @@ def evaluate_contract(contract):
 			
 		for response in response_array:
 			all_items.extend(response.json())
-			contract_cache[contract_id]['items'] = all_items
+		contract_cache[contract_id]['items'] = all_items
 	value_sell = 0
 	value_buy = 0
 	for item_dict in all_items:
@@ -141,6 +141,7 @@ def import_prices():
 	#Import Jita prices and save
 	# 10000044 = Solitude
 	# 10000002 = Forge (Jita)
+	global item_prices
 	print('Importing market prices')
 	orders = import_orders(10000002)
 	item_prices = get_item_prices(orders)
