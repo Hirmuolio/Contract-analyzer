@@ -133,7 +133,7 @@ def evaluate_contract(contract):
 				value_buy = value_buy + quantity * item_prices[str(type_id)]['buy_price']
 	
 	
-	profit = {'profit_sell': [value_sell - cost, 100*(value_sell - cost)/(cost+0.01)] , 'profit_buy':[value_buy - cost, 100*(value_buy - cost)/(cost+0.01)]}
+	profit = {'profit_sell': [value_sell - cost, round(100*(value_sell - cost)/(cost+0.01))] , 'profit_buy':[value_buy - cost, round(100*(value_buy - cost)/(cost+0.01))]}
 
 	return profit
 
@@ -151,12 +151,22 @@ def import_prices():
 		outfile.write(json.dumps(item_prices).encode('utf-8')) 
 
 def analyze_contracts():
+	#Analyze all the contracts one by one
+	
 	region_id = regions[config['region']]
 	all_contracts = fetch_contracts(region_id)
-		
-	contract_values = {}
+	
 	profitable_buy = ''
 	profitable_sell = ''
+	
+	profit_buy_contracts_array = []
+	profit_buy_percentage_array = []
+	
+	profit_sell_contracts_array = []
+	profit_sell_percentage_array = []
+	
+	good_contracts = {}
+	
 	number_of_contracts = len(all_contracts)
 	index = 1
 	for contract in all_contracts:
@@ -166,7 +176,6 @@ def analyze_contracts():
 		
 		profit = evaluate_contract( contract)
 		
-		contract_values[contract['contract_id']] = {'profit_sell':profit['profit_sell'], 'profit_buy':profit['profit_buy']}
 		
 		if profit['profit_buy'][0] > 0:		
 			profit_isk = profit['profit_buy'][0]
@@ -179,8 +188,13 @@ def analyze_contracts():
 			else:
 				profit_isk = str( round( profit_isk) ) + ' isk'
 			
-			string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit_isk + '</url> ' + str( round(profit['profit_buy'][1]) ) + '%'
-			profitable_buy = profitable_buy + '\n' + string
+			profit_buy_contracts_array.append( contract['contract_id'] )
+			profit_buy_percentage_array.append( profit['profit_buy'][1] ) 
+			
+			good_contracts[ contract['contract_id'] ] = {'profit_isk':profit_isk, 'percentage':str( profit['profit_buy'][1])}
+			
+			#string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit_isk + '</url> ' + str( round(profit['profit_buy'][1]) ) + '%'
+			#profitable_buy = profitable_buy + '\n' + string
 				
 		elif profit['profit_sell'][0] > 0:
 			profit_isk = profit['profit_sell'][0]
@@ -192,14 +206,42 @@ def analyze_contracts():
 				profit_isk = str( round(profit_isk / 1000)) + ' thousand isk'
 			else:
 				profit_isk = str( round( profit_isk) ) + ' isk'
-			string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit_isk + '</url> ' + str( round( profit['profit_sell'][1] ) ) + '%'
-			profitable_sell = profitable_sell + '\n' + string
+			
+			profit_sell_contracts_array.append( contract['contract_id'] )
+			profit_sell_percentage_array.append( profit['profit_sell'][1] ) 
+			
+			good_contracts[ contract['contract_id'] ] = {'profit_isk':profit_isk, 'percentage':str( profit['profit_sell'][1])}
+			
+			#string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit_isk + '</url> ' + str( round( profit['profit_sell'][1] ) ) + '%'
+			#profitable_sell = profitable_sell + '\n' + string
 		
-		if index%100 == 0:
-			#Save the cache every 100th contract. Just in case.
+		if index%11000 == 0:
+			#Save the cache every 1000th contract. Just in case.
 			with gzip.GzipFile('contract_cache.gz', 'w') as outfile:
 				outfile.write(json.dumps(contract_cache).encode('utf-8')) 
+	
+	#Sort by percentage
+	profit_buy_percentage_array, profit_buy_contracts_array = zip(*sorted(zip(profit_buy_percentage_array, profit_buy_contracts_array)))
+	profit_sell_percentage_array, profit_sell_contracts_array = zip(*sorted(zip(profit_sell_percentage_array, profit_sell_contracts_array)))
+	
+	profit_buy_contracts_array = list(profit_buy_contracts_array)
+	profit_sell_contracts_array = list(profit_sell_contracts_array)
+	
+	profit_buy_contracts_array.reverse()
+	profit_sell_contracts_array.reverse()
+	
+	
+	#profit buy
+	for contract_id in profit_buy_contracts_array:
+		string = '<url=contract:30003576//' + str(contract_id) + '>' + good_contracts[contract_id]['profit_isk'] + '</url> ' + good_contracts[contract_id]['percentage'] + '%'
+		profitable_buy = profitable_buy + '\n' + string
+	
+	#profit sell
+	for contract_id in profit_sell_contracts_array:
+		string = '<url=contract:30003576//' + str(contract_id) + '>' + good_contracts[contract_id]['profit_isk'] + '</url> ' + good_contracts[contract_id]['percentage'] + '%'
+		profitable_sell = profitable_sell + '\n' + string
 		
+
 	full_string = 'Profitable to sell to Jita buy orders:' + profitable_buy + '\n\nProfitable sell as Jita sell order' + profitable_sell
 	with open('profitable.txt', 'w') as outfile:
 		outfile.write(full_string)
