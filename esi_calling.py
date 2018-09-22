@@ -143,6 +143,7 @@ def get_token_info(tokens):
 	#token type (char/corp)
 	
 	url = 'https://login.eveonline.com/oauth/verify'
+	number_of_attempts=1
 	
 	trying = True
 	while trying == True:

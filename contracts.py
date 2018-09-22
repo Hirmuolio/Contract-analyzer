@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 import requests
 import gzip
+from multiprocessing import Pool
 
 import esi_calling
 
@@ -86,9 +87,10 @@ def get_item_prices(response):
 	return item_prices
 
 def evaluate_contract(contract):
+	default_profit = {'profit_sell': [0, 0], 'profit_buy': [0, 0]}
 	
 	if contract["type"] != 'item_exchange':
-		return {'profit_sell': [0, 0], 'profit_buy': [0, 0]}
+		return default_profit
 	contract_id = str(contract['contract_id'])
 	cost = contract['price'] - contract['reward']
 	
@@ -98,7 +100,12 @@ def evaluate_contract(contract):
 		contract_cache[contract_id] = {}
 		contract_cache[contract_id]['expires'] = contract['date_expired']
 		all_items = []
-		response_array = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get contract items')
+
+		try:
+			response_array = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameter=contract_id, job = 'get contract items')
+		except:
+			print('ESI call failed, skipping this contract', contract_id)
+			return default_profit
 		
 		try:
 			response_code = response_array[0].status_code
@@ -110,7 +117,7 @@ def evaluate_contract(contract):
 		if response_code in [204, 400, 403, 404,]:
 			#Expired recently or empty
 			contract_cache[contract_id]['items'] = []
-			return {'profit_sell': [0, 0], 'profit_buy': [0, 0]}
+			return default_profit
 			
 		for response in response_array:
 			all_items.extend(response.json())
@@ -150,6 +157,9 @@ def import_prices():
 	with gzip.GzipFile('item_prices.gz', 'w') as outfile:
 		outfile.write(json.dumps(item_prices).encode('utf-8')) 
 
+def contract_profit_mapper(contract):
+	return (contract, evaluate_contract(contract))
+
 def analyze_contracts():
 	#Analyze all the contracts one by one
 	
@@ -169,12 +179,18 @@ def analyze_contracts():
 	
 	number_of_contracts = len(all_contracts)
 	index = 1
-	for contract in all_contracts:
+
+	with Pool() as pool:
+		mapped_contracts = pool.map_async(
+			contract_profit_mapper, all_contracts).get()
+
+	for kvp in mapped_contracts:
+		contract = kvp[0]
+		profit = kvp[1]
+
 		#print('\rimportin page: '+str(page)+'/'+str(total_pages), end="")
 		print('\ranalyzing ', index, '/', number_of_contracts, end="")
 		index = index + 1
-		
-		profit = evaluate_contract( contract)
 		
 		
 		if profit['profit_buy'][0] > 0:		
@@ -215,7 +231,7 @@ def analyze_contracts():
 			#string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit_isk + '</url> ' + str( round( profit['profit_sell'][1] ) ) + '%'
 			#profitable_sell = profitable_sell + '\n' + string
 		
-		if index%11000 == 0:
+		if index%1000 == 0:
 			#Save the cache every 1000th contract. Just in case.
 			with gzip.GzipFile('contract_cache.gz', 'w') as outfile:
 				outfile.write(json.dumps(contract_cache).encode('utf-8')) 
