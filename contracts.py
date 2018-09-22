@@ -181,8 +181,7 @@ def analyze_contracts():
 	index = 1
 
 	with Pool() as pool:
-		mapped_contracts = pool.map_async(
-			contract_profit_mapper, all_contracts).get()
+		mapped_contracts = pool.map_async(contract_profit_mapper, all_contracts).get()
 
 	for kvp in mapped_contracts:
 		contract = kvp[0]
