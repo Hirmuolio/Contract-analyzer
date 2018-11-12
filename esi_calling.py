@@ -20,18 +20,28 @@ def set_user_agent(new_user_agent):
 	user_agent = new_user_agent
 	
 
-def error_handling(esi_response, number_of_attempts, tokens = None, scope = None, job = None):
-	#Call this function to decide what to do on error
+def error_handling(esi_response, number_of_attempts, job = '', authorized = False):
+	#Call this function to check the response for errors
+	#Returns False if everything is OK
+	#Return True if something is wrong
+	
+	
+	if esi_response.status_code in [200, 204, 304, 404,  400]:
+			#[200, 204, 304] = All OK
+			#[404,  400] = not found or user error. Still OK
+			return False
+	
+	
 	#Some arbitrary maximum try ammount
-	if number_of_attempts == 50:
-		print('There has been 50 failed attemts to call ESI. Something may be wrong.')
+	if number_of_attempts == 20:
+		print('There has been 20 failed attemts to call ESI. Something may be wrong.')
 		input('Press enter to continue trying...')
 		number_of_attempts = 1
 	
 	if job != '':
-		job_description = 'Failed to ' + job
+		job_description = 'Failed to ' + job #+ '. Payload: ' + payload
 	
-	print(datetime.utcnow().strftime('%H:%M:%S'), job_description+'. Error',esi_response.status_code, end="")
+	print(' ', datetime.utcnow().strftime('%H:%M:%S'), job_description+'. Error',esi_response.status_code, end="")
 	
 	#Some errors have no description so try to print it
 	try:
@@ -39,18 +49,17 @@ def error_handling(esi_response, number_of_attempts, tokens = None, scope = None
 	except:
 		#No error description from ESI
 		print('')
-		
+	
 	if esi_response.status_code == 420:
 		#error limit reached. Wait until reset and try again.
 		time.sleep(esi_response.headers['x-esi-error-limit-reset']+1)
-	elif esi_response.status_code in [400, 401, 403]:
-		#Authorization not working
-		#Check if access token expired (can be fixed)
-		#Check if scopes are valid (can't be fixed)
-		#If can't be fixed then exit
-		print('Your authorization is the problem. Make sure your client ID and secret key are valid and that you logged the right char.')
-		input('Press enter to continue trying (won\'t work. Just close the script and redo login or client ID/secret)...')
-	
+	elif esi_response.status_code in [401, 403]:
+		if authorized == True:
+			input('Press enter to continue trying (won\'t work. Just close the script and redo login or client ID/secret)...')
+			return True
+		else:
+			#This was never meant to work. Everything is OK
+			return False
 	else:
 		#500 = internal server error (downtime?)
 		#502 = bad gateway
@@ -60,6 +69,7 @@ def error_handling(esi_response, number_of_attempts, tokens = None, scope = None
 		time_to_wait = (2 ** number_of_attempts) + (random.randint(0, 1000) / 1000)
 		print('Retrying in', time_to_wait, 'second...')
 		time.sleep((2 ** number_of_attempts) + (random.randint(0, 1000) / 1000))
+		return True
 
 
 def logging_in(scopes, client_id, client_secret):
@@ -75,13 +85,13 @@ def logging_in(scopes, client_id, client_secret):
 	
 	esi_response = requests.post(authentication_url, headers =  {"Authorization":"Basic "+combo, "User-Agent":user_agent}, data = {"grant_type": "authorization_code", "code": authentication_code} )
 	
-	if esi_response.status_code != 200:
-		error_handling(esi_response, number_of_attempts, job = 'log in')
-	else:
+	if error_handling(esi_response, number_of_attempts, job = 'log in') == False:
 		tokens = {}
 		tokens['refresh_token'] = esi_response.json()['refresh_token']
 		tokens['access_token'] = esi_response.json()['access_token']
 		tokens['expiry_time'] = str( datetime.utcnow() + timedelta(0,esi_response.json()['expires_in']) )
+	else:
+		print('Failed to log in.')
 
 	
 	return tokens
@@ -120,11 +130,7 @@ def check_tokens(tokens, client_secret, client_id):
 		while trying == True:
 			esi_response = requests.post(refresh_url, headers =  {"Authorization":"Basic "+combo, "User-Agent":user_agent}, data = {"grant_type": "refresh_token", "refresh_token": tokens['refresh_token']} )
 			
-			if esi_response.status_code != 200:
-				error_handling(esi_response, number_of_attempts, tokens, scope = None, job = 'refresh tokens')
-			else:
-				#Success
-				trying = False
+			trying = error_handling(esi_response, number_of_attempts, scope = None, job = 'refresh tokens')
 			number_of_attempts = number_of_attempts + 1
 			
 		tokens['refresh_token']	= esi_response.json()['refresh_token']
@@ -148,12 +154,8 @@ def get_token_info(tokens):
 	while trying == True:
 		esi_response = requests.get(url, headers =  {"Authorization":"Bearer "+tokens['access_token'], "User-Agent":user_agent})
 		
-		if esi_response.status_code != 200:
-			error_handling(esi_response, number_of_attempts, tokens, scope = None, job = 'get token info')
-		else:
-			#Success
-			trying = False
-			
+		trying = error_handling(esi_response, number_of_attempts, scope = None, job = 'get token info')
+
 	token_info = {}
 	token_info['character_name'] = esi_response.json()['CharacterName']
 	token_info['character_id'] = esi_response.json()['CharacterID']	
@@ -189,8 +191,10 @@ def call_esi(scope, url_parameter = '', etag = None, tokens = None, datasource =
 	#un-authorized / authorized
 	if tokens == None:
 		headers = {"User-Agent":user_agent}
+		authorized = True
 	else:
 		headers =  {"Authorization":"Bearer "+tokens['access_token'], "User-Agent":user_agent}
+		authorized = False
 	
 	trying = True
 	while trying == True:
@@ -202,21 +206,11 @@ def call_esi(scope, url_parameter = '', etag = None, tokens = None, datasource =
 		elif calltype == 'delete':
 			esi_response = session.delete(url, headers = headers)
 		
-		#200 = ok
-		#204 = ok
-		#304 = no change
-		#404 = not found
-		#400 = bad request. User is stupid
-		if esi_response.status_code in [200, 204, 304, 404,  400]:
-			#[200, 204, 304] = All OK
-			#[404,  400] = not found or user error. Still OK
-			trying = False
-		else:
-			error_handling(esi_response, number_of_attempts, tokens, scope, job)
+		trying = error_handling(esi_response, number_of_attempts, job, authorized)
 		number_of_attempts = number_of_attempts + 1
 	
 	#Multipaged  calls
-	#Returns array of all the r esponses
+	#Returns array of all the responses
 	if 'X-Pages' in esi_response.headers:
 		number_of_attempts = 0
 		all_responses = []
@@ -239,10 +233,7 @@ def call_esi(scope, url_parameter = '', etag = None, tokens = None, datasource =
 				
 				all_responses.append(esi_response_page)
 				
-				if esi_response_page.status_code in [200, 204, 304, 404, 400]:
-					trying = False
-				else:
-					error_handling(esi_response_page, number_of_attempts, tokens, scope, job)
+				trying = error_handling(esi_response, number_of_attempts, job, authorized)
 				number_of_attempts = number_of_attempts + 1
 		if total_pages > 1:	
 			print(' - DONE')

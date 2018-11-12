@@ -4,10 +4,28 @@ import json
 from datetime import datetime
 import requests
 import gzip
+import sys
 
 import esi_calling
 
 esi_calling.set_user_agent('Hirmuolio/Contract-analyzer')
+
+def get_item_info(item_id):
+	#/v3/universe/types/{type_id}/
+	response = esi_calling.call_esi(scope = '/v3/universe/types/{par}/', url_parameter=item_id, job = 'get item info').json()
+	
+	item_cache[str(item_id)] = response
+	with gzip.GzipFile('item_cache.gz', 'w') as outfile:
+		outfile.write(json.dumps(item_cache).encode('utf-8'))
+
+def get_group_info(group_id):
+	#/v1/universe/groups/{group_id}/
+	response = esi_calling.call_esi(scope = '/v1/universe/groups/{par}/', url_parameter=group_id, job = 'get group info').json()
+	
+	group_cache[str(group_id)] = response
+	with gzip.GzipFile('group_cache.gz', 'w') as outfile:
+		outfile.write(json.dumps(group_cache).encode('utf-8'))
+	
 
 def fetch_contracts(region_id):
 	#10000044 = Solitude
@@ -87,6 +105,8 @@ def get_item_prices(response):
 
 def evaluate_contract(contract):
 	
+	dots = 0
+	
 	if contract["type"] != 'item_exchange':
 		return {'profit_sell': [0, 0], 'profit_buy': [0, 0]}
 	contract_id = str(contract['contract_id'])
@@ -119,9 +139,24 @@ def evaluate_contract(contract):
 	value_buy = 0
 	for item_dict in all_items:
 		if 'is_blueprint_copy' in item_dict:
+			#Do not valye BPCs
 			continue
 		quantity = item_dict['quantity']
 		type_id = item_dict['type_id']
+		
+		if not str(type_id) in item_cache:
+			print('\r.' * dots, end = '')
+			dots = dots + 1
+			get_item_info(type_id)
+		if not str(item_cache[str(type_id)]['group_id']) in group_cache:
+			print('\r.' * dots, end = '')
+			dots = dots + 1
+			get_group_info(str(item_cache[str(type_id)]['group_id']))
+		
+		if 'record_id' in item_dict:
+			if group_cache[ str(item_cache[str(type_id)]['group_id']) ]['category_id'] == 8:
+				#Do not value unstacked charges. They are most likely damaged
+				continue
 		
 		if item_dict["is_included"] == False:
 			quantity = -quantity
@@ -142,6 +177,7 @@ def import_prices():
 	# 10000044 = Solitude
 	# 10000002 = Forge (Jita)
 	global item_prices
+	item_prices = {}
 	print('Importing market prices')
 	orders = import_orders(10000002)
 	item_prices = get_item_prices(orders)
@@ -169,6 +205,7 @@ def analyze_contracts():
 	
 	number_of_contracts = len(all_contracts)
 	index = 1
+	print('')
 	for contract in all_contracts:
 		#print('\rimportin page: '+str(page)+'/'+str(total_pages), end="")
 		print('\ranalyzing ', index, '/', number_of_contracts, end="")
@@ -215,7 +252,7 @@ def analyze_contracts():
 			#string = '<url=contract:30003576//' + str(contract['contract_id']) + '>' + profit_isk + '</url> ' + str( round( profit['profit_sell'][1] ) ) + '%'
 			#profitable_sell = profitable_sell + '\n' + string
 		
-		if index%11000 == 0:
+		if index%1000 == 0:
 			#Save the cache every 1000th contract. Just in case.
 			with gzip.GzipFile('contract_cache.gz', 'w') as outfile:
 				outfile.write(json.dumps(contract_cache).encode('utf-8')) 
@@ -364,6 +401,19 @@ except:
 	with open('config.json', 'w') as outfile:
 		json.dump(config, outfile, indent=4)
 
+try:
+	with gzip.GzipFile('item_cache.gz', 'r') as fin:
+		item_cache = json.loads(fin.read().decode('utf-8'))
+except:
+	print('no item cache found')
+	item_cache = {}
+
+try:
+	with gzip.GzipFile('group_cache.gz', 'r') as fin:
+		group_cache = json.loads(fin.read().decode('utf-8'))
+except:
+	group_cache = {}
+		
 clean_cache()
 
 main_menu()
