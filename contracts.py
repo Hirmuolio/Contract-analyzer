@@ -126,7 +126,7 @@ def import_prices():
 		if not key in item_cache:
 			import_ids.append(key)
 		
-		if len(import_ids) == 300 or counter == len(item_prices):
+		if len(import_ids) == 500 or counter == len(item_prices):
 			get_item_info(import_ids)
 			import_ids = []
 			
@@ -139,7 +139,7 @@ def import_prices():
 		if not group_id in group_cache:
 			import_ids.append( group_id )
 		
-		if len(import_ids) == 300 or counter == len(item_prices):
+		if len(import_ids) == 500 or counter == len(item_prices):
 			print('importing', len(import_ids), 'groups' )
 			get_group_info(import_ids)
 			import_ids = []
@@ -257,7 +257,6 @@ def analyze_contracts():
 						
 					contract_cache[ids[index]]['items'].extend(contract_items)
 			ids = []
-				#Save the cache after every bulk import just in case.
 	with gzip.GzipFile('contract_cache.gz', 'w') as outfile:
 		outfile.write(json.dumps(contract_cache, indent=2).encode('utf-8')) 
 	
@@ -284,7 +283,8 @@ def analyze_contracts():
 		if not str(type_id) in item_cache:
 			fetch_ids.append(type_id)
 			
-		if len(fetch_ids)==100 or (counter == len(all_items) and len(fetch_ids) != 0 ):
+		if len(fetch_ids)==500 or (counter == len(all_items) and len(fetch_ids) != 0 ):
+			print('importing item attributes', counter,'/',len(all_items) )
 			get_item_info(fetch_ids)
 			fetch_ids = []
 	print('Item check done')
@@ -424,6 +424,12 @@ except:
 	item_cache = {}
 
 try:
+	with gzip.GzipFile('group_cache.gz', 'r') as fin:
+		group_cache = json.loads(fin.read().decode('utf-8'))
+except:
+	group_cache = {}
+
+try:
 	#item_prices = json.load(open('item_prices.json'))
 	with gzip.GzipFile('item_prices.gz', 'r') as fin:
 		item_prices = json.loads(fin.read().decode('utf-8'))
@@ -469,11 +475,7 @@ except:
 	with open('config.json', 'w') as outfile:
 		json.dump(config, outfile, indent=4)
 
-try:
-	with gzip.GzipFile('group_cache.gz', 'r') as fin:
-		group_cache = json.loads(fin.read().decode('utf-8'))
-except:
-	group_cache = {}
+
 		
 
 #-------------
