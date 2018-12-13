@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from datetime import timedelta
 import gzip
 import sys
 
@@ -264,9 +265,6 @@ def analyze_contracts():
 	uncached_contracts = []
 	
 	
-	with gzip.GzipFile('asd.gz', 'w') as outfile:
-		outfile.write(json.dumps({'a':all_contracts}, indent=2).encode('utf-8'))
-	
 	#Check contracts for items that need to be imported (items that are not on market)
 	print('\nchecking contracts for new items')
 	print('contracts:', len(contract_cache))
@@ -300,6 +298,12 @@ def analyze_contracts():
 	for contract in all_contracts:
 		print('\ranalyzing ', index, '/', number_of_contracts, end="")
 		index = index + 1
+		
+		if contract["type"] != "item_exchange":
+			continue
+		elif contract["start_location_id"] != 60003760 and config['jita_limit'] == True and config['region'] == 'The Forge':
+			continue
+		
 		
 		contract_id = str(contract['contract_id'])
 		
@@ -351,31 +355,34 @@ def analyze_contracts():
 			#profitable_sell = profitable_sell + '\n' + string
 		
 	
-	#Sort by percentage
-	profit_buy_percentage_array, profit_buy_contracts_array = zip(*sorted(zip(profit_buy_percentage_array, profit_buy_contracts_array)))
-	profit_sell_percentage_array, profit_sell_contracts_array = zip(*sorted(zip(profit_sell_percentage_array, profit_sell_contracts_array)))
-	
-	profit_buy_contracts_array = list(profit_buy_contracts_array)
-	profit_sell_contracts_array = list(profit_sell_contracts_array)
-	
-	profit_buy_contracts_array.reverse()
-	profit_sell_contracts_array.reverse()
-	
-	
-	#profit buy
-	for contract_id in profit_buy_contracts_array:
-		string = '<url=contract:30003576//' + str(contract_id) + '>' + good_contracts[contract_id]['profit_isk'] + '</url> ' + good_contracts[contract_id]['percentage'] + '%'
-		profitable_buy = profitable_buy + '\n' + string
-	
-	#profit sell
-	for contract_id in profit_sell_contracts_array:
-		string = '<url=contract:30003576//' + str(contract_id) + '>' + good_contracts[contract_id]['profit_isk'] + '</url> ' + good_contracts[contract_id]['percentage'] + '%'
-		profitable_sell = profitable_sell + '\n' + string
+	if len(profit_buy_contracts_array) == 0:
+		print('No profitable contracts')
+	else:	
+		#Sort by percentage
+		profit_buy_percentage_array, profit_buy_contracts_array = zip(*sorted(zip(profit_buy_percentage_array, profit_buy_contracts_array)))
+		profit_sell_percentage_array, profit_sell_contracts_array = zip(*sorted(zip(profit_sell_percentage_array, profit_sell_contracts_array)))
 		
+		profit_buy_contracts_array = list(profit_buy_contracts_array)
+		profit_sell_contracts_array = list(profit_sell_contracts_array)
+		
+		profit_buy_contracts_array.reverse()
+		profit_sell_contracts_array.reverse()
+		
+		
+		#profit buy
+		for contract_id in profit_buy_contracts_array:
+			string = '<url=contract:30003576//' + str(contract_id) + '>' + good_contracts[contract_id]['profit_isk'] + '</url> ' + good_contracts[contract_id]['percentage'] + '%'
+			profitable_buy = profitable_buy + '\n' + string
+		
+		#profit sell
+		for contract_id in profit_sell_contracts_array:
+			string = '<url=contract:30003576//' + str(contract_id) + '>' + good_contracts[contract_id]['profit_isk'] + '</url> ' + good_contracts[contract_id]['percentage'] + '%'
+			profitable_sell = profitable_sell + '\n' + string
+			
 
-	full_string = 'Profitable to sell to Jita buy orders:' + profitable_buy + '\n\nProfitable sell as Jita sell order' + profitable_sell
-	with open('profitable.txt', 'w') as outfile:
-		outfile.write(full_string)
+		full_string = 'Profitable to sell to Jita buy orders:' + profitable_buy + '\n\nProfitable sell as Jita sell order' + profitable_sell
+		with open('profitable.txt', 'w') as outfile:
+			outfile.write(full_string)
 	
 
 def import_regions():
@@ -436,7 +443,7 @@ try:
 	deletable_contracts = []
 	for contract_id in contract_cache:
 		contract_expires = datetime.strptime(contract_cache[contract_id]['date_expired'], '%Y-%m-%dT%H:%M:%SZ') 
-		if time_now > contract_expires:
+		if time_now - timedelta(0,600)  > contract_expires:
 			deletable_contracts.append(contract_id)
 	print('Deleting', len(deletable_contracts), 'expired contracts')
 	for contract_id in deletable_contracts:
@@ -474,7 +481,7 @@ except:
 #------------
 
 while True:
-	print('\n[R] Region to import contracts from (currently: ', config['region'], ')\n[M] Market data reimport\n[S] Start contract analysis')
+	print('\n[R] Region to import contracts from (currently: ', config['region'], ')\n[J] Jita limiter (currently: ', config['jita_limit'], ')\n[M] Market data reimport\n[S] Start contract analysis')
 	user_input = input("[R/M/S] ")
 	if user_input in ['R', 'r']:
 		region_selection()
@@ -482,6 +489,10 @@ while True:
 		import_prices()
 	elif user_input in ['S', 's']:
 		analyze_contracts()
+	elif user_input in ['J', 'j']:
+		config['jita_limit'] = not config['jita_limit']
+		with open('config.json', 'w') as outfile:
+			json.dump(config, outfile, indent=4)
 
 
 
