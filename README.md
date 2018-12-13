@@ -9,6 +9,8 @@ On first run the script will start by importing the Forge (Jita) market data. Th
 
 Select the region of which you want to import contracts of. You will need to write the name of the region exactly right.
 
+You may also enable/disable the "Jita limiter". When this is enabled the script will ignore contracts in Forge region that are not located in Jita 4-4. This setting has no effect in other regions.
+
 Then start the import.
 
 Results will be written in "profit.txt" in same folder. Copy the contents of this text file and paste it to mail writing window ingame. This will create clickable links to the contractrs.
