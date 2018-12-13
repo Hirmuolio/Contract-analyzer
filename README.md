@@ -26,7 +26,7 @@ The script has few cases where it will give incorrect results.
 * The value estimations are based on the current highest buy order and current lowest sell order in Jita. The real value may be difrerent (beware the contract scam).
 * All upackaged charge items are valued at zero isk. This to get rid of damaged ammo.
 * The Forge region includes areas other than Jita.
-* When items are removed from market the old market orders will stay up. As a result the script will think that expired cerebral accelerators are still traded and gives them some value.
+* When items are removed from market the old market orders will stay up. As a result the script will think that expired cerebral accelerators are still traded and gives them some value. To fix this you will need to delete the item cache. This will force the script to refresh the attributes for all items and it will then see that those items are not supposed to be on market anymore.
 
 ## Requirements:
 * Python 3
