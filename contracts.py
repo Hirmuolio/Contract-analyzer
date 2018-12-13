@@ -174,17 +174,24 @@ def evaluate_items(cost, contract_items):
 			if group_cache[ str(item_cache[str(type_id)]['group_id']) ]['category_id'] == 8:
 				#Do not value unstacked charges. They are most likely damaged
 				continue
+		if item_cache[str(type_id)]['published'] == False:
+			#Not on market
+			continue
 		
 		if item_dict["is_included"] == False:
-			quantity = -quantity
-		
-		if str(type_id) in item_prices:
-			if 'sell_price' in item_prices[str(type_id)]:
-				value_sell = value_sell + quantity * item_prices[str(type_id)]['sell_price']
-			if 'buy_price' in item_prices[str(type_id)]:
-				value_buy = value_buy + quantity * item_prices[str(type_id)]['buy_price']
+			if str(type_id) in item_prices:
+				if 'sell_price' in item_prices[str(type_id)]:
+					cost += quantity * item_prices[str(type_id)]['sell_price']
+		else:
+			if str(type_id) in item_prices:
+				if 'sell_price' in item_prices[str(type_id)]:
+					value_sell = value_sell + quantity * item_prices[str(type_id)]['sell_price']
+				if 'buy_price' in item_prices[str(type_id)]:
+					value_buy = value_buy + quantity * item_prices[str(type_id)]['buy_price']
 	
 	#profit  [profit, percentage], [profit, percentage]
+	#sell_profit = value_sell - cost
+	#sell_profit_percentage = round(100*(sell_profit)/(cost+0.01))
 	profit = {'profit_sell': [value_sell - cost, round(100*(value_sell - cost)/(cost+0.01))] , 'profit_buy':[value_buy - cost, round(100*(value_buy - cost)/(cost+0.01))]}
 
 	return profit
@@ -192,8 +199,6 @@ def evaluate_items(cost, contract_items):
 def analyze_contracts():
 	#Import all the contracts
 	#Analyze all the contracts one by one
-	global contract_cache
-	print(len(contract_cache))
 	region_id = regions[config['region']]
 	all_contracts = fetch_contracts(region_id)
 	
@@ -425,19 +430,23 @@ try:
 	with gzip.GzipFile('contract_cache.gz', 'r') as fin:
 		contract_cache = json.loads(fin.read().decode('utf-8'))
 	
-	#Delete expired contracts
+	#Delete old contracts
+	print('clening')
 	time_now = datetime.utcnow()
 	deletable_contracts = []
 	for contract_id in contract_cache:
-		contract_expires = datetime.strptime(contract_cache[contract_id]['expires'], '%Y-%m-%dT%H:%M:%SZ') 
+		contract_expires = datetime.strptime(contract_cache[contract_id]['date_expired'], '%Y-%m-%dT%H:%M:%SZ') 
 		if time_now > contract_expires:
 			deletable_contracts.append(contract_id)
+	print('Deleting', len(deletable_contracts), 'expired contracts')
 	for contract_id in deletable_contracts:
 		contract_cache.pop(contract_id, None)
 	with gzip.GzipFile('contract_cache.gz', 'w') as outfile:
 		outfile.write(json.dumps(contract_cache).encode('utf-8')) 
 except:
+	print('No contract cache found')
 	contract_cache = {}
+
 
 	
 try:
