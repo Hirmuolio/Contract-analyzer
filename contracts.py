@@ -26,8 +26,6 @@ def get_item_info(item_ids):
 		#print(response)
 		item_id = response['type_id']
 		item_cache[str(item_id)] = response
-	with gzip.GzipFile('item_cache.gz', 'w') as outfile:
-		outfile.write(json.dumps(item_cache, indent=2).encode('utf-8'))
 
 def get_group_info(group_ids):
 	#/v1/universe/groups/{group_id}/
@@ -129,6 +127,8 @@ def import_prices():
 		if len(import_ids) == 500 or counter == len(item_prices):
 			get_item_info(import_ids)
 			import_ids = []
+	with gzip.GzipFile('item_cache.gz', 'w') as outfile:
+		outfile.write(json.dumps(item_cache, indent=2).encode('utf-8'))
 			
 	#Get groups for all items and groups.
 	import_ids = []
@@ -148,8 +148,6 @@ def import_prices():
 
 
 def evaluate_items(cost, contract_items):
-	
-	dots = 0
 
 	#contract_cache[contract_id]['items'] = contract_items
 	
@@ -167,6 +165,8 @@ def evaluate_items(cost, contract_items):
 		if not str(type_id) in item_cache:
 			print(' ', type_id, 'Item not in item cache')
 			get_item_info([type_id])
+			with gzip.GzipFile('item_cache.gz', 'w') as outfile:
+				outfile.write(json.dumps(item_cache, indent=2).encode('utf-8'))
 		if not str(item_cache[str(type_id)]['group_id']) in group_cache:
 			print('group not in group cache. Importing...')
 			get_group_info([str(item_cache[str(type_id)]['group_id'])])
@@ -175,6 +175,15 @@ def evaluate_items(cost, contract_items):
 			if group_cache[ str(item_cache[str(type_id)]['group_id']) ]['category_id'] == 8:
 				#Do not value unstacked charges. They are most likely damaged
 				continue
+			if config['exlude_rigs'] and 'dogma_attributes' in item_cache[str(type_id)]:
+				skip_item = False
+				#Do not value unstacked rigs. They are fitted on the ship.
+				# 1153 = Dogma attribute upgradeCost (rig calibration)
+				for attribute in item_cache[str(type_id)]['dogma_attributes']:
+					if attribute[ "attribute_id" ] == 1153:
+						skip_item = True
+				if skip_item:
+					continue
 		if item_cache[str(type_id)]['published'] == False:
 			#Not on market
 			continue
@@ -182,7 +191,7 @@ def evaluate_items(cost, contract_items):
 		if item_dict["is_included"] == False:
 			if str(type_id) in item_prices:
 				if 'sell_price' in item_prices[str(type_id)]:
-					cost += quantity * item_prices[str(type_id)]['sell_price']
+					cost = cost + quantity * item_prices[str(type_id)]['sell_price']
 		else:
 			if str(type_id) in item_prices:
 				if 'sell_price' in item_prices[str(type_id)]:
@@ -287,6 +296,8 @@ def analyze_contracts():
 			print('importing item attributes', counter,'/',len(all_items) )
 			get_item_info(fetch_ids)
 			fetch_ids = []
+	with gzip.GzipFile('item_cache.gz', 'w') as outfile:
+		outfile.write(json.dumps(item_cache, indent=2).encode('utf-8'))
 	print('Item check done')
 				
 	
@@ -471,7 +482,8 @@ except:
 try:
 	config = json.load(open('config.json'))
 except:
-	config = {'region':'The Forge'}
+	#Default config
+	config = {'region':'The Forge', "exlude_rigs": True, "jita_limit": True}
 	with open('config.json', 'w') as outfile:
 		json.dump(config, outfile, indent=4)
 
@@ -483,7 +495,7 @@ except:
 #------------
 
 while True:
-	print('\n[R] Region to import contracts from (currently: ', config['region'], ')\n[J] Jita limiter (currently: ', config['jita_limit'], ')\n[M] Market data reimport\n[S] Start contract analysis')
+	print('\n[R] Region to import contracts from (currently: ', config['region'], ')\n[J] Jita limiter (currently: ', config['jita_limit'], ')\n[E] Exclude fitted rigs (currently: ', config['exlude_rigs'], '\n[M] Market data reimport\n[S] Start contract analysis')
 	user_input = input("[R/M/S] ")
 	if user_input in ['R', 'r']:
 		region_selection()
@@ -493,6 +505,10 @@ while True:
 		analyze_contracts()
 	elif user_input in ['J', 'j']:
 		config['jita_limit'] = not config['jita_limit']
+		with open('config.json', 'w') as outfile:
+			json.dump(config, outfile, indent=4)
+	elif user_input in ['E', 'e']:
+		config['exlude_rigs'] = not config['exlude_rigs']
 		with open('config.json', 'w') as outfile:
 			json.dump(config, outfile, indent=4)
 
