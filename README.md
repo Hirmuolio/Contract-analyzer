@@ -29,6 +29,7 @@ The script has few cases where it will give incorrect results.
 * All upackaged charge items are valued at zero isk. This to get rid of damaged ammo.
 * The Forge region includes areas other than Jita.
 * When items are removed from market the old market orders will stay up. As a result the script will think that expired cerebral accelerators are still traded and gives them some value. To fix this you will need to delete the item cache. This will force the script to refresh the attributes for all items and it will then see that those items are not supposed to be on market anymore.
+* Sometimes the script crashes for no good reason. Rerunning the script makes it work (usually).
 
 ## Requirements:
 * Python 3
