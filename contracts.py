@@ -10,6 +10,9 @@ import esi_calling
 
 esi_calling.set_user_agent('Hirmuolio/Contract-analyzer')
 
+def print_time( message ):
+	print(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), message)
+
 def get_item_info(item_ids):
 	#print('Getting item info for', len(item_ids), 'items')
 	#Get attributes for item IDs listed
@@ -47,7 +50,7 @@ def get_group_info(group_ids):
 def fetch_contracts(region_id):
 	#10000044 = Solitude
 	#Returns an array that contains all contracts of a region
-	print('fetching contracts for region ID', region_id)
+	print_time('fetching contracts for region ID' + str(region_id) )
 	
 	all_contracts = []
 	
@@ -57,7 +60,7 @@ def fetch_contracts(region_id):
 	
 	for response in response_array:
 		all_contracts.extend(response.json())
-	print('Got {:,d} contracts.'.format(len(all_contracts)))
+	print_time('Got {:,d} contracts.'.format(len(all_contracts)))
 	
 	
 	return all_contracts
@@ -66,6 +69,7 @@ def fetch_contracts(region_id):
 def import_orders(region_id):
 	#'10000044' Solitude
 	#10000002 = Jita
+	print_time('fetching market for region ID' + str(region_id) )
 	all_orders = []
 	
 	response_array = esi_calling.call_esi(scope = '/v1/markets/{par}/orders/', url_parameters=[region_id], job = 'get market orders')[0]
@@ -73,7 +77,7 @@ def import_orders(region_id):
 	
 	for response in response_array:
 		all_orders.extend(response.json())
-	print('Got {:,d} orders.'.format(len(all_orders)))
+	print_time('Got {:,d} orders.'.format(len(all_orders)))
 	return all_orders
 
 def get_item_prices(response):
@@ -104,7 +108,6 @@ def import_prices():
 	# 10000044 = Solitude
 	# 10000002 = Forge (Jita)
 	item_prices = {}
-	print('Importing market prices')
 	orders = import_orders(10000002)
 	item_prices = get_item_prices(orders)
 	#with open('item_prices.json', 'w') as outfile:
@@ -117,7 +120,7 @@ def import_prices():
 	import_ids = []
 	counter = 0
 	#len(item_prices)
-	print('')
+	print_time('Checking items')
 	for key in item_prices:
 		counter += 1
 		print('\rChecking item ', counter, '/', len(item_prices), end="", flush=True)
@@ -146,7 +149,6 @@ def import_prices():
 		
 			
 
-
 def evaluate_items(cost, contract_items):
 
 	#contract_cache[contract_id]['items'] = contract_items
@@ -168,7 +170,7 @@ def evaluate_items(cost, contract_items):
 			with gzip.GzipFile('item_cache.gz', 'w') as outfile:
 				outfile.write(json.dumps(item_cache, indent=2).encode('utf-8'))
 		if not str(item_cache[str(type_id)]['group_id']) in group_cache:
-			print('group not in group cache. Importing...')
+			print('. group not in group cache. Importing...')
 			get_group_info([str(item_cache[str(type_id)]['group_id'])])
 		
 		if 'record_id' in item_dict:
@@ -243,7 +245,6 @@ def analyze_contracts():
 	print('Importing', contracts_to_import, 'contracts...')
 	counter = 0
 	ids = []
-	print(len(uncached_contracts))
 	print('')
 	for contract in uncached_contracts:
 		counter += 1
@@ -274,8 +275,8 @@ def analyze_contracts():
 	
 	
 	#Check contracts for items that need to be imported (items that are not on market)
-	print('\nchecking contracts for new items')
-	print('contracts:', len(contract_cache))
+	print_time('\nchecking contracts for new items')
+	print('  contracts:', len(contract_cache))
 	all_items = []
 	fetch_ids = []
 	for contract_id in contract_cache:
@@ -285,7 +286,7 @@ def analyze_contracts():
 				type_id = item_dict['type_id']
 				if not type_id in all_items:
 					all_items.append(type_id)
-	print('Found', len(all_items), 'unique items in contracts. Checking items.')
+	print_time('Found' + str( len(all_items) ) + 'unique items in contracts. Checking items.')
 	counter = 0
 	for type_id in all_items:
 		counter +=1
@@ -293,12 +294,12 @@ def analyze_contracts():
 			fetch_ids.append(type_id)
 			
 		if len(fetch_ids)==500 or (counter == len(all_items) and len(fetch_ids) != 0 ):
-			print('importing item attributes', counter,'/',len(all_items) )
+			print('  importing item attributes', counter,'/',len(all_items) )
 			get_item_info(fetch_ids)
 			fetch_ids = []
 	with gzip.GzipFile('item_cache.gz', 'w') as outfile:
 		outfile.write(json.dumps(item_cache, indent=2).encode('utf-8'))
-	print('Item check done')
+	print_time('Item check done')
 				
 	
 	number_of_contracts = len(all_contracts)
@@ -307,7 +308,7 @@ def analyze_contracts():
 	
 	#Now estimate the value of the contract
 	for contract in all_contracts:
-		print('\ranalyzing ', index, '/', number_of_contracts, end="")
+		print('  \ranalyzing ', index, '/', number_of_contracts, end="")
 		index = index + 1
 		
 		if contract["type"] != "item_exchange":
@@ -367,7 +368,7 @@ def analyze_contracts():
 		
 	
 	if len(profit_buy_contracts_array) == 0:
-		print('No profitable contracts')
+		print('  No profitable contracts')
 	else:	
 		#Sort by percentage
 		profit_buy_percentage_array, profit_buy_contracts_array = zip(*sorted(zip(profit_buy_percentage_array, profit_buy_contracts_array)))
@@ -397,6 +398,7 @@ def analyze_contracts():
 	
 
 def import_regions():
+	print_time('Importing regions')
 	response = esi_calling.call_esi(scope = '/v1/universe/regions/', job = 'get regions')
 	
 	regions = {}
@@ -411,7 +413,7 @@ def import_regions():
 	return regions
 	
 def region_selection():
-	print('Valid regions: ', list(regions) )
+	print('  Valid regions: ', list(regions) )
 	user_input = input("Type in the region to import ")
 	
 	if user_input in regions:
@@ -419,7 +421,7 @@ def region_selection():
 		with open('config.json', 'w') as outfile:
 			json.dump(config, outfile, indent=4)
 	else:
-		print('Invalid region. Try again')
+		print('  Invalid region. Try again')
 		region_selection()
 	
 				
@@ -431,7 +433,7 @@ try:
 	with gzip.GzipFile('item_cache.gz', 'r') as fin:
 		item_cache = json.loads(fin.read().decode('utf-8'))
 except:
-	print('no item cache found')
+	print_time('no item cache found')
 	item_cache = {}
 
 try:
@@ -445,7 +447,7 @@ try:
 	with gzip.GzipFile('item_prices.gz', 'r') as fin:
 		item_prices = json.loads(fin.read().decode('utf-8'))
 except:
-	print('No market prices found')
+	print_time('No market prices found')
 	item_prices = {}
 	import_prices()
 
@@ -455,20 +457,20 @@ try:
 		contract_cache = json.loads(fin.read().decode('utf-8'))
 	
 	#Delete old contracts
-	print('clening')
+	print_time('clening')
 	time_now = datetime.utcnow()
 	deletable_contracts = []
 	for contract_id in contract_cache:
 		contract_expires = datetime.strptime(contract_cache[contract_id]['date_expired'], '%Y-%m-%dT%H:%M:%SZ') 
 		if time_now - timedelta(0,600)  > contract_expires:
 			deletable_contracts.append(contract_id)
-	print('Deleting', len(deletable_contracts), 'expired contracts')
+	print_time('Deleting', len(deletable_contracts), 'expired contracts')
 	for contract_id in deletable_contracts:
 		contract_cache.pop(contract_id, None)
 	with gzip.GzipFile('contract_cache.gz', 'w') as outfile:
 		outfile.write(json.dumps(contract_cache).encode('utf-8')) 
 except:
-	print('No contract cache found')
+	print_time('No contract cache found')
 	contract_cache = {}
 
 
@@ -476,7 +478,7 @@ except:
 try:
 	regions = json.load(open('regions.json'))
 except:
-	print('No regions found')
+	print_time('No regions found')
 	regions = import_regions()
 	
 try:
@@ -495,7 +497,7 @@ except:
 #------------
 
 while True:
-	print('\n[R] Region to import contracts from (currently: ', config['region'], ')\n[J] Jita limiter (currently: ', config['jita_limit'], ')\n[E] Exclude fitted rigs (currently: ', config['exlude_rigs'], '\n[M] Market data reimport\n[S] Start contract analysis')
+	print('\n[R] Region to import contracts from (currently: ', config['region'], ')\n[J] Jita limiter (currently: ', config['jita_limit'], ')\n[E] Exclude fitted rigs (currently: ', config['exlude_rigs'], ')\n[M] Market data reimport\n[S] Start contract analysis')
 	user_input = input("[R/M/S] ")
 	if user_input in ['R', 'r']:
 		region_selection()
