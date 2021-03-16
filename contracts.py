@@ -286,7 +286,7 @@ def analyze_contracts():
 				type_id = item_dict['type_id']
 				if not type_id in all_items:
 					all_items.append(type_id)
-	print_time('Found' + str( len(all_items) ) + 'unique items in contracts. Checking items.')
+	print_time('Found ' + str( len(all_items) ) + ' unique items in contracts. Checking items.')
 	counter = 0
 	for type_id in all_items:
 		counter +=1
@@ -453,25 +453,26 @@ except:
 
 try:
 	#contract_cache = json.load(open('contract_cache.json'))
+	print_time('loading cached contracts')
 	with gzip.GzipFile('contract_cache.gz', 'r') as fin:
 		contract_cache = json.loads(fin.read().decode('utf-8'))
-	
-	#Delete old contracts
-	print_time('clening')
-	time_now = datetime.utcnow()
-	deletable_contracts = []
-	for contract_id in contract_cache:
-		contract_expires = datetime.strptime(contract_cache[contract_id]['date_expired'], '%Y-%m-%dT%H:%M:%SZ') 
-		if time_now - timedelta(0,600)  > contract_expires:
-			deletable_contracts.append(contract_id)
-	print_time('Deleting', len(deletable_contracts), 'expired contracts')
-	for contract_id in deletable_contracts:
-		contract_cache.pop(contract_id, None)
-	with gzip.GzipFile('contract_cache.gz', 'w') as outfile:
-		outfile.write(json.dumps(contract_cache).encode('utf-8')) 
 except:
 	print_time('No contract cache found')
 	contract_cache = {}
+	
+#Delete old contracts
+print_time('clening')
+time_now = datetime.utcnow()
+deletable_contracts = []
+for contract_id in contract_cache:
+	contract_expires = datetime.strptime(contract_cache[contract_id]['date_expired'], '%Y-%m-%dT%H:%M:%SZ') 
+	if time_now - timedelta(0,600)  > contract_expires:
+		deletable_contracts.append(contract_id)
+print_time('Deleting ' + str(len(deletable_contracts) ) + ' expired contracts')
+for contract_id in deletable_contracts:
+	contract_cache.pop(contract_id, None)
+print_time('Contract cache with ' + str(len( contract_cache )) + ' contacts')
+
 
 
 	
