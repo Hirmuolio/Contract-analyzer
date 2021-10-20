@@ -33,4 +33,5 @@ The script has few cases where it will give incorrect results.
 
 ## Requirements:
 * Python 3
+* Request futures https://github.com/ross/requests-futures
 * Requests-futures https://github.com/ross/requests-futures
