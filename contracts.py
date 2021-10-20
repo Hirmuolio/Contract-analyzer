@@ -22,27 +22,42 @@ def get_item_info(item_ids):
 	if len(item_ids) == 0:
 		return
 	
-	response_array = esi_calling.call_esi(scope = '/v3/universe/types/{par}/', url_parameters=item_ids, job = 'get item infos')
+	urls = []
+	for i_id in item_ids:
+		url = esi_calling.construct_url( "/v3/universe/types/{}/", i_id )
+		urls.append( url )
+	response_array = esi_calling.call_many( urls )
 	
-	for array in response_array:
-		response = (array[0]).json()
+	for response in response_array:
 		#print(response)
-		item_id = response['type_id']
-		item_cache[str(item_id)] = response
+		item_id = response.json()['type_id']
+		item_cache[str(item_id)] = response.json()
+	
+	with gzip.GzipFile('item_cache.gz', 'w') as outfile:
+		outfile.write(json.dumps(item_cache, indent=2).encode('utf-8'))
 
 def get_group_info(group_ids):
 	#/v1/universe/groups/{group_id}/
 	
 	if len(group_ids) == 0:
 		return
+	elif len(group_ids) == 1:
+		url = esi_calling.construct_url( "/v1/universe/groups/{}/", group_ids[0] )
+		response = esi_calling.call_esi( url )
+		group_id = response.json()['group_id']
+		group_cache[str(group_id)] = response.json()
+	else:
+		urls = []
+		for g_id in group_ids:
+			url = esi_calling.construct_url( "/v1/universe/groups/{}/", g_id )
+			urls.append( url )
+		
+		response_array = esi_calling.call_many( urls )
+		
+		for response in response_array:
+			group_id = response.json()['group_id']
+			group_cache[str(group_id)] = response.json()
 	
-	response_array = esi_calling.call_esi(scope = '/v1/universe/groups/{par}/', url_parameters=group_ids, job = 'get group info')
-	
-	
-	for array in response_array:
-		response = (array[0]).json()
-		group_id = response['group_id']
-		group_cache[str(group_id)] = response
 	with gzip.GzipFile('group_cache.gz', 'w') as outfile:
 		outfile.write(json.dumps(group_cache).encode('utf-8'))
 	
@@ -54,9 +69,8 @@ def fetch_contracts(region_id):
 	
 	all_contracts = []
 	
-	
-	response_array = esi_calling.call_esi(scope = '/v1/contracts/public/{par}/', url_parameters=[region_id], job = 'get region contracts')[0]
-	expires = response_array[0].headers['expires']
+	url = esi_calling.construct_url( '/v1/contracts/public/{}/', region_id )
+	response_array = esi_calling.call_many_pages( url )
 	
 	for response in response_array:
 		all_contracts.extend(response.json())
@@ -72,8 +86,8 @@ def import_orders(region_id):
 	print_time('fetching market for region ID' + str(region_id) )
 	all_orders = []
 	
-	response_array = esi_calling.call_esi(scope = '/v1/markets/{par}/orders/', url_parameters=[region_id], job = 'get market orders')[0]
-	#print(response_array)
+	url = esi_calling.construct_url( '/v1/markets/{}/orders/', region_id )
+	response_array = esi_calling.call_many_pages( url )
 	
 	for response in response_array:
 		all_orders.extend(response.json())
@@ -116,36 +130,25 @@ def import_prices():
 		outfile.write(json.dumps(item_prices).encode('utf-8'))
 	
 	#Get attributes for all items listed on market
-	
-	import_ids = []
-	counter = 0
-	#len(item_prices)
 	print_time('Checking items')
+	import_item_ids = []
+	
 	for key in item_prices:
-		counter += 1
-		print('\rChecking item ', counter, '/', len(item_prices), end="", flush=True)
 		if not key in item_cache:
-			import_ids.append(key)
-		
-		if len(import_ids) == 500 or counter == len(item_prices):
-			get_item_info(import_ids)
-			import_ids = []
-	with gzip.GzipFile('item_cache.gz', 'w') as outfile:
-		outfile.write(json.dumps(item_cache, indent=2).encode('utf-8'))
+			import_item_ids.append(key)
+	
+	get_item_info(import_item_ids)
 			
 	#Get groups for all items and groups.
-	import_ids = []
-	counter = 0
-	for item_id in item_cache:
-		counter += 1
+	import_group_ids = []
+	
+	for item_id in import_item_ids:
 		group_id = str(item_cache[str(item_id)]['group_id'])
 		if not group_id in group_cache:
-			import_ids.append( group_id )
-		
-		if len(import_ids) == 500 or counter == len(item_prices):
-			print('importing', len(import_ids), 'groups' )
-			get_group_info(import_ids)
-			import_ids = []
+			if not group_id in import_group_ids:
+				import_group_ids.append( group_id )
+	
+	get_group_info(import_group_ids)
 		
 			
 
@@ -170,7 +173,7 @@ def evaluate_items(cost, contract_items):
 			with gzip.GzipFile('item_cache.gz', 'w') as outfile:
 				outfile.write(json.dumps(item_cache, indent=2).encode('utf-8'))
 		if not str(item_cache[str(type_id)]['group_id']) in group_cache:
-			print('. group not in group cache. Importing...')
+			print(". group not in group cache. Importing...")
 			get_group_info([str(item_cache[str(type_id)]['group_id'])])
 		
 		if 'record_id' in item_dict:
@@ -238,68 +241,76 @@ def analyze_contracts():
 			
 		
 	
-	#Import items of 10 contracts at once
+	#Import items of contracts at once
 	#Then evalueate them one by one
 	
 	contracts_to_import = len(uncached_contracts)
 	print('Importing', contracts_to_import, 'contracts...')
-	counter = 0
-	ids = []
-	print('')
+	
+	contract_ids = []
 	for contract in uncached_contracts:
-		counter += 1
-		
 		if contract['type'] == 'item_exchange':
-			ids.append( str(contract['contract_id']) )
-			
-		if len(ids) == 200 or counter == len(uncached_contracts):
-			print('\rImporting ', counter, '/', len(uncached_contracts), end="", flush=True)
-			small_contract_items = []
-			response_array = esi_calling.call_esi(scope = '/v1/contracts/public/items/{par}/', url_parameters=ids, job = 'get contract items')
-			
-			for index in range(len(ids)):
-				contract_cache[ids[index]]['items'] = []
-				contract_items = []
-				if not response_array[index][0].status_code in [204, 400, 403, 404,]:
-					#[204, 400, 403, 404,] would mean expired or accepted contract. Leave [] for items.
-					for response in response_array[index]:
-						contract_items.extend(response.json())
-						
-					contract_cache[ids[index]]['items'].extend(contract_items)
-			ids = []
-	with gzip.GzipFile('contract_cache.gz', 'w') as outfile:
-		outfile.write(json.dumps(contract_cache, indent=2).encode('utf-8')) 
+			contract_ids.append( str(contract['contract_id']) )
 	
-	#All contracts are now in cache
-	uncached_contracts = []
+	urls = []
+	response_array = []
+	for c_id in contract_ids:
+		url = esi_calling.construct_url( "/v1/contracts/public/items/{}/", c_id )
+		urls.append( url )
+	
+	if contract_ids:
+		response_array = esi_calling.call_many( urls )
 	
 	
-	#Check contracts for items that need to be imported (items that are not on market)
-	print_time('\nchecking contracts for new items')
-	print('  contracts:', len(contract_cache))
-	all_items = []
-	fetch_ids = []
-	for contract_id in contract_cache:
-		contract = contract_cache[contract_id]
-		if 'items' in contract:
-			for item_dict in contract['items']:
-				type_id = item_dict['type_id']
-				if not type_id in all_items:
-					all_items.append(type_id)
-	print_time('Found ' + str( len(all_items) ) + ' unique items in contracts. Checking items.')
-	counter = 0
-	for type_id in all_items:
-		counter +=1
-		if not str(type_id) in item_cache:
-			fetch_ids.append(type_id)
+		for response in response_array:
+			for word in response.url.split("/"):
+				if word.isdigit():
+					c_id = word
+					break
 			
-		if len(fetch_ids)==500 or (counter == len(all_items) and len(fetch_ids) != 0 ):
-			print('  importing item attributes', counter,'/',len(all_items) )
-			get_item_info(fetch_ids)
-			fetch_ids = []
-	with gzip.GzipFile('item_cache.gz', 'w') as outfile:
-		outfile.write(json.dumps(item_cache, indent=2).encode('utf-8'))
-	print_time('Item check done')
+			if response.status_code in [204, 400, 403, 404,]:
+				#[204, 400, 403, 404,] would mean expired or accepted contract. Leave [] for items.
+				contract_cache[c_id]['items'] = []
+			else:
+				contract_cache[c_id]['items'] = response.json()
+		
+		with gzip.GzipFile('contract_cache.gz', 'w') as outfile:
+			outfile.write(json.dumps(contract_cache, indent=2).encode('utf-8')) 
+		
+		
+		#Check contracts for items that need to be imported (items that are not on market)
+		print_time('\nchecking contracts for new items')
+		print('  contracts:', len(contract_cache))
+		all_items = []
+		all_groups = []
+		for contract_id in contract_cache:
+			contract = contract_cache[contract_id]
+			if 'items' in contract:
+				for item_dict in contract['items']:
+					type_id = item_dict['type_id']
+					if not type_id in all_items:
+						all_items.append(type_id)
+		print_time('Found ' + str( len(all_items) ) + ' unique items in contracts. Checking items.')
+		
+		fetch_item_ids = []
+		for type_id in all_items:
+			if not str(type_id) in item_cache:
+				fetch_item_ids.append(type_id)
+		
+		
+		print('  importing item attributes for', len(fetch_item_ids), "items" )
+		get_item_info(fetch_item_ids)
+		
+		fetch_group_ids = []
+		for type_id in all_items:
+			group_id = item_cache[ str(type_id) ]['group_id']
+			if not group_id in group_cache:
+				fetch_group_ids.append( group_id )
+		
+		print('  importing group attributes for', len(fetch_group_ids), "items" )
+		get_group_info( fetch_group_ids )
+		
+		print_time('Item check done')
 				
 	
 	number_of_contracts = len(all_contracts)
@@ -368,7 +379,9 @@ def analyze_contracts():
 		
 	
 	if len(profit_buy_contracts_array) == 0:
-		print('  No profitable contracts')
+		print('  No profitable buy contracts')
+	if len(profit_sell_contracts_array) == 0:
+		print(" No profitable sell contracts" )
 	else:	
 		#Sort by percentage
 		profit_buy_percentage_array, profit_buy_contracts_array = zip(*sorted(zip(profit_buy_percentage_array, profit_buy_contracts_array)))
@@ -399,12 +412,24 @@ def analyze_contracts():
 
 def import_regions():
 	print_time('Importing regions')
-	response = esi_calling.call_esi(scope = '/v1/universe/regions/', job = 'get regions')
+	url = esi_calling.construct_url( '/v1/universe/regions/' )
+	response = esi_calling.call_esi( url )
 	
 	regions = {}
-	for region_id in response.json():
-		print('importing a region name...')
-		response = esi_calling.call_esi(scope = '/v1/universe/regions/{par}/', url_parameters=[region_id], job = 'get region name')
+	urls = []
+	
+	for r_id in response.json():
+		url = esi_calling.construct_url( "/v1/universe/regions/{}/", r_id )
+		urls.append( url )
+	
+	print('importing a region names...')
+	response_array = esi_calling.call_many( urls )
+	
+	for response in response_array:
+		for word in response.url.split("/"):
+			if word.isdigit():
+				region_id = word
+				break
 		region_name = response.json()["name"]
 		regions[region_name] = region_id
 		
